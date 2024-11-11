@@ -1,14 +1,4 @@
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
-const data = [
-  { date: "Jan", price: 42000 },
-  { date: "Feb", price: 45000 },
-  { date: "Mar", price: 48000 },
-  { date: "Apr", price: 44000 },
-  { date: "May", price: 46000 },
-  { date: "Jun", price: 50000 },
-  { date: "Jul", price: 49000 },
-];
+import TradingViewWidget from 'react-tradingview-widget';
 
 const CryptoChart = () => {
   return (
@@ -22,26 +12,22 @@ const CryptoChart = () => {
           <button className="px-3 py-1 rounded-full text-sm bg-secondary text-foreground">1Y</button>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#8989DE" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#8989DE" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="date" axisLine={false} tickLine={false} />
-          <YAxis axisLine={false} tickLine={false} />
-          <Tooltip />
-          <Area
-            type="monotone"
-            dataKey="price"
-            stroke="#8989DE"
-            fillOpacity={1}
-            fill="url(#colorPrice)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className="h-[400px] w-full">
+        <TradingViewWidget
+          symbol="BINANCE:BTCUSDT"
+          theme="light"
+          locale="en"
+          autosize
+          hide_side_toolbar={false}
+          allow_symbol_change={true}
+          interval="D"
+          toolbar_bg="#FAFAF8"
+          enable_publishing={false}
+          hide_top_toolbar={false}
+          save_image={false}
+          container_id="tradingview_chart"
+        />
+      </div>
     </div>
   );
 };
