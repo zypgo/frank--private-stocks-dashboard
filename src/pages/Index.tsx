@@ -3,7 +3,6 @@ import MarketStats from "@/components/MarketStats";
 import CryptoChart from "@/components/CryptoChart";
 import PortfolioCard from "@/components/PortfolioCard";
 import CryptoList from "@/components/CryptoList";
-import NewsFeed from "@/components/NewsFeed";
 import FearGreedIndex from "@/components/FearGreedIndex";
 import TrendingSearch from "@/components/TrendingSearch";
 import GainersLosers from "@/components/GainersLosers";
@@ -31,7 +30,7 @@ const Index = () => {
           </div>
         </div>
         
-        {/* 新增功能区域 */}
+        {/* 功能区域 */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
           <div>
             <FearGreedIndex />
@@ -47,13 +46,10 @@ const Index = () => {
           </div>
         </div>
 
-        {/* 工具和新闻区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        {/* 工具区域 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <div>
             <CurrencyConverter />
-          </div>
-          <div className="lg:col-span-2">
-            <NewsFeed />
           </div>
         </div>
         
