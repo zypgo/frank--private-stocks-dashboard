@@ -49,18 +49,18 @@ const CryptoSearch = () => {
     retryDelay: 2000,
   });
 
-  // 当币种详情卡片打开时，关闭搜索下拉菜单
+  // 当币种详情卡片打开时，立即关闭搜索下拉菜单并清空搜索
   useEffect(() => {
     if (selectedCoinId) {
       setIsOpen(false);
+      setSearchQuery("");
     }
   }, [selectedCoinId]);
 
   const handleCoinSelect = (coinId: string) => {
     console.log('Selected coin:', coinId);
     setSelectedCoinId(coinId);
-    setIsOpen(false);
-    setSearchQuery("");
+    // 这些状态更新会被 useEffect 处理
   };
 
   return (
@@ -78,16 +78,22 @@ const CryptoSearch = () => {
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 // 只有在没有选中币种时才显示搜索结果
-                setIsOpen(e.target.value.length >= 2 && !selectedCoinId);
+                if (!selectedCoinId) {
+                  setIsOpen(e.target.value.length >= 2);
+                }
               }}
-              onFocus={() => setIsOpen(searchQuery.length >= 2 && !selectedCoinId)}
+              onFocus={() => {
+                if (!selectedCoinId && searchQuery.length >= 2) {
+                  setIsOpen(true);
+                }
+              }}
               className="w-full pl-10 pr-4 py-3 bg-secondary/20 border border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
             />
           </div>
 
-          {/* 只有在没有选中币种时才显示搜索结果 */}
-          {isOpen && !selectedCoinId && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-secondary rounded-lg shadow-lg z-40 max-h-80 overflow-y-auto">
+          {/* 搜索结果下拉菜单 - 只有在没有选中币种且搜索框有焦点时才显示 */}
+          {isOpen && !selectedCoinId && searchQuery.length >= 2 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-secondary rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
               {isLoading ? (
                 <div className="p-4">
                   <div className="animate-pulse space-y-3">
@@ -135,11 +141,11 @@ const CryptoSearch = () => {
                     </div>
                   ))}
                 </div>
-              ) : searchQuery.length >= 2 ? (
+              ) : (
                 <div className="p-4 text-center text-muted-foreground text-sm">
                   未找到相关币种
                 </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>
@@ -147,7 +153,7 @@ const CryptoSearch = () => {
         {/* 点击外部关闭搜索结果 */}
         {isOpen && !selectedCoinId && (
           <div 
-            className="fixed inset-0 z-30" 
+            className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
           />
         )}
