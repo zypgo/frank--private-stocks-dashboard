@@ -78,7 +78,7 @@ const CryptoSearch = () => {
           </div>
 
           {isOpen && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-secondary rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-secondary rounded-lg shadow-lg z-40 max-h-80 overflow-y-auto">
               {isLoading ? (
                 <div className="p-4">
                   <div className="animate-pulse space-y-3">
@@ -138,7 +138,7 @@ const CryptoSearch = () => {
         {/* 点击外部关闭搜索结果 */}
         {isOpen && (
           <div 
-            className="fixed inset-0 z-40" 
+            className="fixed inset-0 z-30" 
             onClick={() => setIsOpen(false)}
           />
         )}

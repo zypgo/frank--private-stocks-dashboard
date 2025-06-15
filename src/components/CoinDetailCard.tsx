@@ -62,7 +62,7 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center">
         <div className="glass-card p-6 rounded-lg max-w-md w-full mx-4 animate-fade-in">
           <div className="animate-pulse space-y-4">
             <div className="flex items-center justify-between">
@@ -91,7 +91,7 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
   if (error) {
     console.error('Error fetching coin details:', error);
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center">
         <div className="glass-card p-6 rounded-lg max-w-md w-full mx-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-red-500">数据加载失败</h3>
@@ -136,7 +136,7 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
   const isPositive = priceChange >= 0;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center">
       <div className="glass-card p-6 rounded-lg max-w-md w-full mx-4 animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
