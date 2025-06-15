@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SearchIcon } from "lucide-react";
 import CoinDetailCard from "./CoinDetailCard";
@@ -49,6 +49,13 @@ const CryptoSearch = () => {
     retryDelay: 2000,
   });
 
+  // 当币种详情卡片打开时，关闭搜索下拉菜单
+  useEffect(() => {
+    if (selectedCoinId) {
+      setIsOpen(false);
+    }
+  }, [selectedCoinId]);
+
   const handleCoinSelect = (coinId: string) => {
     console.log('Selected coin:', coinId);
     setSelectedCoinId(coinId);
@@ -70,14 +77,16 @@ const CryptoSearch = () => {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                setIsOpen(e.target.value.length >= 2);
+                // 只有在没有选中币种时才显示搜索结果
+                setIsOpen(e.target.value.length >= 2 && !selectedCoinId);
               }}
-              onFocus={() => setIsOpen(searchQuery.length >= 2)}
+              onFocus={() => setIsOpen(searchQuery.length >= 2 && !selectedCoinId)}
               className="w-full pl-10 pr-4 py-3 bg-secondary/20 border border-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
             />
           </div>
 
-          {isOpen && (
+          {/* 只有在没有选中币种时才显示搜索结果 */}
+          {isOpen && !selectedCoinId && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-secondary rounded-lg shadow-lg z-40 max-h-80 overflow-y-auto">
               {isLoading ? (
                 <div className="p-4">
@@ -136,7 +145,7 @@ const CryptoSearch = () => {
         </div>
 
         {/* 点击外部关闭搜索结果 */}
-        {isOpen && (
+        {isOpen && !selectedCoinId && (
           <div 
             className="fixed inset-0 z-30" 
             onClick={() => setIsOpen(false)}
