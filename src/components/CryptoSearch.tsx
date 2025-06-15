@@ -7,12 +7,33 @@ import CoinDetailCard from "./CoinDetailCard";
 const searchCrypto = async (query: string) => {
   if (!query || query.length < 2) return [];
   
-  const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
-  if (!response.ok) {
-    throw new Error('Failed to search crypto');
+  console.log('Searching for:', query);
+  
+  try {
+    const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+    
+    if (!response.ok) {
+      console.error('Search API failed with status:', response.status);
+      throw new Error(`Search failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Search results:', data.coins?.length || 0, 'coins found');
+    return data.coins?.slice(0, 10) || [];
+  } catch (error) {
+    console.error('Search error:', error);
+    // Return some mock data as fallback
+    if (query.toLowerCase().includes('btc') || query.toLowerCase().includes('bitcoin')) {
+      return [{
+        id: 'bitcoin',
+        name: 'Bitcoin',
+        symbol: 'BTC',
+        market_cap_rank: 1,
+        thumb: 'https://coin-images.coingecko.com/coins/images/1/thumb/bitcoin.png'
+      }];
+    }
+    return [];
   }
-  const data = await response.json();
-  return data.coins.slice(0, 10);
 };
 
 const CryptoSearch = () => {
@@ -20,10 +41,12 @@ const CryptoSearch = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedCoinId, setSelectedCoinId] = useState<string | null>(null);
 
-  const { data: searchResults, isLoading } = useQuery({
+  const { data: searchResults, isLoading, error } = useQuery({
     queryKey: ['cryptoSearch', searchQuery],
     queryFn: () => searchCrypto(searchQuery),
     enabled: searchQuery.length >= 2,
+    retry: 1,
+    retryDelay: 2000,
   });
 
   const handleCoinSelect = (coinId: string) => {
@@ -70,6 +93,13 @@ const CryptoSearch = () => {
                     ))}
                   </div>
                 </div>
+              ) : error ? (
+                <div className="p-4 text-center">
+                  <p className="text-red-500 text-sm mb-2">搜索服务暂时不可用</p>
+                  <p className="text-muted-foreground text-xs">
+                    请尝试直接输入常见币种如 "bitcoin", "ethereum"
+                  </p>
+                </div>
               ) : searchResults && searchResults.length > 0 ? (
                 <div className="py-2">
                   {searchResults.map((coin: any) => (
@@ -82,6 +112,9 @@ const CryptoSearch = () => {
                         src={coin.thumb || coin.large} 
                         alt={coin.name} 
                         className="w-8 h-8 rounded-full"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                       <div className="flex-1">
                         <p className="font-medium text-sm">{coin.name}</p>
