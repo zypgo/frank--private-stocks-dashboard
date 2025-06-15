@@ -7,7 +7,6 @@ import FearGreedIndex from "@/components/FearGreedIndex";
 import TrendingSearch from "@/components/TrendingSearch";
 import GainersLosers from "@/components/GainersLosers";
 import CryptoSearch from "@/components/CryptoSearch";
-import CurrencyConverter from "@/components/CurrencyConverter";
 
 const Index = () => {
   return (
@@ -30,8 +29,8 @@ const Index = () => {
           </div>
         </div>
         
-        {/* 功能区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+        {/* 功能区域 - 调整为3列布局 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           <div>
             <FearGreedIndex />
           </div>
@@ -41,16 +40,11 @@ const Index = () => {
           <div>
             <GainersLosers />
           </div>
-          <div>
-            <CryptoSearch />
-          </div>
         </div>
 
-        {/* 工具区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div>
-            <CurrencyConverter />
-          </div>
+        {/* 搜索区域 */}
+        <div className="mb-8">
+          <CryptoSearch />
         </div>
         
         <CryptoList />

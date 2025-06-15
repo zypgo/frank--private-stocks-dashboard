@@ -2,35 +2,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { X, TrendingUp, TrendingDown } from "lucide-react";
 
-interface Coin {
-  id: string;
-  name: string;
-  symbol: string;
-  image?: string;
-  current_price?: number;
-  price_change_percentage_24h?: number;
-  market_cap?: number;
-  market_cap_rank?: number;
-  total_volume?: number;
-}
-
 interface CoinDetailCardProps {
   coinId: string;
   onClose: () => void;
 }
 
 const fetchCoinDetails = async (coinId: string) => {
-  const response = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`);
+  console.log('Fetching coin details for:', coinId);
+  const response = await fetch(
+    `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`
+  );
+  
   if (!response.ok) {
-    throw new Error('Failed to fetch coin details');
+    console.error('Failed to fetch coin details:', response.status);
+    throw new Error(`Failed to fetch coin details: ${response.status}`);
   }
-  return response.json();
+  
+  const data = await response.json();
+  console.log('Coin details fetched successfully:', data.name);
+  return data;
 };
 
 const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
   const { data: coin, isLoading, error } = useQuery({
     queryKey: ['coinDetails', coinId],
     queryFn: () => fetchCoinDetails(coinId),
+    retry: 2,
+    retryDelay: 1000,
   });
 
   if (isLoading) {
@@ -62,6 +60,7 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
   }
 
   if (error) {
+    console.error('Error fetching coin details:', error);
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
         <div className="glass-card p-6 rounded-lg max-w-md w-full mx-4">
@@ -71,10 +70,20 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-muted-foreground">无法加载币种详情，请稍后重试。</p>
+          <p className="text-muted-foreground mb-4">无法加载币种详情，请稍后重试。</p>
+          <button 
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            关闭
+          </button>
         </div>
       </div>
     );
+  }
+
+  if (!coin) {
+    return null;
   }
 
   const priceChange = coin?.market_data?.price_change_percentage_24h || 0;
@@ -85,14 +94,20 @@ const CoinDetailCard = ({ coinId, onClose }: CoinDetailCardProps) => {
       <div className="glass-card p-6 rounded-lg max-w-md w-full mx-4 animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <img 
-              src={coin?.image?.large || coin?.image?.small} 
-              alt={coin?.name} 
-              className="w-12 h-12 rounded-full"
-            />
+            {coin?.image?.large && (
+              <img 
+                src={coin.image.large} 
+                alt={coin.name} 
+                className="w-12 h-12 rounded-full"
+                onError={(e) => {
+                  console.log('Image failed to load, hiding image');
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
             <div>
-              <h3 className="text-xl font-bold">{coin?.name}</h3>
-              <p className="text-muted-foreground">{coin?.symbol?.toUpperCase()}</p>
+              <h3 className="text-xl font-bold">{coin?.name || 'Unknown'}</h3>
+              <p className="text-muted-foreground">{coin?.symbol?.toUpperCase() || 'N/A'}</p>
             </div>
           </div>
           <button 
