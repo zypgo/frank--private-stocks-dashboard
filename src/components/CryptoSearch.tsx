@@ -2,14 +2,17 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SearchIcon } from "lucide-react";
 import CoinDetailCard from "./CoinDetailCard";
+import SecurityManager from "@/utils/security";
 
 const searchCrypto = async (query: string) => {
   if (!query || query.length < 2) return [];
   
-  console.log('Searching for:', query);
+  // Sanitize search query to prevent XSS
+  const sanitizedQuery = SecurityManager.sanitizeApiData(query);
+  console.log('Searching for:', sanitizedQuery);
   
   try {
-    const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+    const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(sanitizedQuery)}`);
     
     if (!response.ok) {
       console.error('Search API failed with status:', response.status);
@@ -18,7 +21,10 @@ const searchCrypto = async (query: string) => {
     
     const data = await response.json();
     console.log('Search results:', data.coins?.length || 0, 'coins found');
-    return data.coins?.slice(0, 10) || [];
+    
+    // Sanitize API response data
+    const sanitizedCoins = SecurityManager.sanitizeApiData(data.coins || []);
+    return sanitizedCoins.slice(0, 10);
   } catch (error) {
     console.error('Search error:', error);
     // Return some mock data as fallback
@@ -75,10 +81,12 @@ const CryptoSearch = () => {
               placeholder="搜索币种名称或符号..."
               value={searchQuery}
               onChange={(e) => {
-                setSearchQuery(e.target.value);
+                // Sanitize input to prevent XSS
+                const sanitizedValue = SecurityManager.sanitizeApiData(e.target.value);
+                setSearchQuery(sanitizedValue);
                 // 只有在没有选中币种时才显示搜索结果
                 if (!selectedCoinId) {
-                  setIsOpen(e.target.value.length >= 2);
+                  setIsOpen(sanitizedValue.length >= 2);
                 }
               }}
               onFocus={() => {
