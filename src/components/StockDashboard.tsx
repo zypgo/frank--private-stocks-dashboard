@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertCircle, Settings } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertCircle, Settings, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -25,6 +25,57 @@ const TRACKED_STOCKS = [
   { symbol: "UNH", name: "联合健康", category: "医疗" },
 ];
 
+// 生成模拟股票数据
+const generateMockData = () => {
+  return TRACKED_STOCKS.map(stock => ({
+    ...stock,
+    price: (Math.random() * 200 + 50).toFixed(2),
+    change: (Math.random() * 10 - 5).toFixed(2),
+    changePercent: (Math.random() * 8 - 4).toFixed(2),
+    volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+    isPositive: Math.random() > 0.5,
+    timestamp: new Date().getTime(),
+    isMockData: true
+  }));
+};
+
+// 缓存相关的键名
+const CACHE_KEY = 'frank_portfolio_data';
+const CACHE_TIMESTAMP_KEY = 'frank_portfolio_timestamp';
+const CACHE_DURATION = 60 * 60 * 1000; // 1小时
+
+// 从缓存获取数据
+const getCachedData = () => {
+  try {
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    
+    if (cachedData && cachedTimestamp) {
+      const timestamp = parseInt(cachedTimestamp);
+      const now = new Date().getTime();
+      
+      if (now - timestamp < CACHE_DURATION) {
+        console.log('从缓存加载数据');
+        return JSON.parse(cachedData);
+      }
+    }
+  } catch (error) {
+    console.error('读取缓存失败:', error);
+  }
+  return null;
+};
+
+// 保存数据到缓存
+const setCachedData = (data) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().getTime().toString());
+    console.log('数据已保存到缓存');
+  } catch (error) {
+    console.error('保存缓存失败:', error);
+  }
+};
+
 // 使用Alpha Vantage API获取实时股票数据
 const fetchRealTimeStockData = async (apiKey?: string) => {
   if (!apiKey) {
@@ -32,41 +83,6 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
   }
 
   console.log('开始获取Alpha Vantage数据，API密钥:', apiKey.substring(0, 8) + '...');
-
-  // 先测试一个简单的API调用
-  try {
-    const testUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${apiKey}`;
-    console.log('测试API调用:', testUrl);
-    
-    const testResponse = await fetch(testUrl);
-    console.log('测试响应状态:', testResponse.status);
-    
-    const testData = await testResponse.json();
-    console.log('测试响应数据:', testData);
-    
-    // 检查API限制提示
-    if (testData['Information'] && testData['Information'].includes('API call frequency')) {
-      throw new Error('API调用频率过高，请稍后重试');
-    }
-    
-    if (testData['Note'] && testData['Note'].includes('API call frequency')) {
-      throw new Error('API调用频率过高，请稍后重试');
-    }
-    
-    if (testData['Error Message']) {
-      throw new Error(`API错误: ${testData['Error Message']}`);
-    }
-    
-    // 检查是否有数据
-    if (!testData['Global Quote']) {
-      console.error('API响应缺少Global Quote数据:', testData);
-      throw new Error('API响应格式不正确，请检查API密钥');
-    }
-    
-  } catch (error) {
-    console.error('API测试失败:', error);
-    throw new Error(`API测试失败: ${error.message}`);
-  }
 
   const results = [];
   
@@ -90,20 +106,19 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
       const data = await response.json();
       console.log(`${stock.symbol}原始数据:`, data);
       
-      // 检查各种错误情况
-      if (data['Information'] && data['Information'].includes('API call frequency')) {
-        console.warn(`${stock.symbol}: API调用频率限制`);
-        break; // 停止后续请求
-      }
-      
+      // 检查API限制 - 如果达到限制，抛出特定错误
       if (data['Note'] && data['Note'].includes('API call frequency')) {
-        console.warn(`${stock.symbol}: API调用频率限制`);
-        break; // 停止后续请求
+        throw new Error('API_LIMIT_REACHED');
       }
       
       if (data['Error Message']) {
         console.error(`${stock.symbol} API错误:`, data['Error Message']);
         continue;
+      }
+      
+      // Information字段只是提示，不是错误，继续处理数据
+      if (data['Information'] && data['Information'].includes('rate limit')) {
+        console.log('API限制提示:', data['Information']);
       }
       
       const quote = data['Global Quote'];
@@ -143,6 +158,9 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
       }
       
     } catch (error) {
+      if (error.message === 'API_LIMIT_REACHED') {
+        throw error;
+      }
       console.error(`获取${stock.symbol}数据时出错:`, error);
       continue;
     }
@@ -178,6 +196,7 @@ const StockDashboard = () => {
   const [apiKey, setApiKey] = useState('');
   const [showApiDialog, setShowApiDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   // 从localStorage获取API key
   useEffect(() => {
@@ -199,49 +218,100 @@ const StockDashboard = () => {
       setShowApiDialog(false);
       setTempApiKey('');
       // 重新加载数据
-      loadStockData();
+      loadStockData(true);
     }
   };
 
   // 获取数据的函数
-  const loadStockData = async () => {
+  const loadStockData = async (forceRefresh = false) => {
     try {
       setError(null);
       setLoading(true);
+      
       const currentApiKey = apiKey || localStorage.getItem('alphavantage_api_key');
       
       if (!currentApiKey) {
         setError("需要Alpha Vantage API密钥");
+        // 加载mock数据
+        const mockData = generateMockData();
+        setStockData(mockData);
+        setLastUpdate(new Date());
         return;
       }
-      
-      const data = await fetchRealTimeStockData(currentApiKey);
-      setStockData(data);
-      setLastUpdate(new Date());
-      console.log('Stock data loaded successfully:', data);
+
+      // 如果不是强制刷新，先尝试加载缓存数据
+      if (!forceRefresh) {
+        const cachedData = getCachedData();
+        if (cachedData) {
+          setStockData(cachedData);
+          setLastUpdate(new Date());
+          return;
+        }
+      }
+
+      // 尝试从API获取数据
+      try {
+        const data = await fetchRealTimeStockData(currentApiKey);
+        setStockData(data);
+        setCachedData(data); // 保存到缓存
+        setLastUpdate(new Date());
+        console.log('Stock data loaded successfully:', data);
+      } catch (apiError) {
+        console.warn('API获取失败，尝试使用缓存或模拟数据:', apiError.message);
+        
+        // 如果API失败，尝试使用缓存数据
+        const cachedData = getCachedData();
+        if (cachedData) {
+          console.log('使用缓存数据');
+          setStockData(cachedData);
+          setLastUpdate(new Date());
+          setError('API调用限制，显示缓存数据');
+        } else {
+          // 如果没有缓存，使用模拟数据
+          console.log('使用模拟数据');
+          const mockData = generateMockData();
+          setStockData(mockData);
+          setLastUpdate(new Date());
+          setError('API不可用，显示模拟数据');
+        }
+      }
     } catch (err) {
       setError(`数据获取失败: ${err.message}`);
       console.error('Load stock data error:', err);
-      setStockData([]); // Clear any existing data on error
+      
+      // 尝试加载mock数据作为最后的备选
+      const mockData = generateMockData();
+      setStockData(mockData);
+      setLastUpdate(new Date());
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  // 初始加载和定时刷新  
+  // 手动刷新数据
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await loadStockData(true); // 强制刷新
+  };
+
+  // 初始加载
   useEffect(() => {
     if (apiKey) {
       loadStockData();
     }
   }, [apiKey]);
 
+  // 每小时自动刷新
   useEffect(() => {
-    if (apiKey && stockData.length > 0) {
-      // 由于API限制，每5分钟更新一次
-      const interval = setInterval(loadStockData, 300000); // 5分钟
+    if (apiKey) {
+      const interval = setInterval(() => {
+        console.log('执行每小时自动刷新');
+        loadStockData(true);
+      }, 60 * 60 * 1000); // 1小时
       return () => clearInterval(interval);
     }
-  }, [apiKey, stockData.length]);
+  }, [apiKey]);
 
   if (loading) {
     return (
@@ -285,6 +355,14 @@ const StockDashboard = () => {
               <span className="text-xs">{error}</span>
             </div>
           )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
           <Dialog open={showApiDialog} onOpenChange={setShowApiDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
@@ -378,7 +456,7 @@ const StockDashboard = () => {
             <div className="mt-4 pt-4 border-t border-secondary/30">
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>
-                由 Alpha Vantage 提供数据 • 每5分钟更新 • 免费版有API限制 • 仅供参考，投资有风险
+                由 Alpha Vantage 提供数据 • 每小时自动更新 • 免费版有API限制 • 仅供参考，投资有风险
               </span>
               {lastUpdate && (
                 <span>
