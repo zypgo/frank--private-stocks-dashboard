@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertCircle, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // 所有追踪的股票
 const TRACKED_STOCKS = [
@@ -22,36 +25,82 @@ const TRACKED_STOCKS = [
   { symbol: "UNH", name: "联合健康", category: "医疗" },
 ];
 
-// 使用Yahoo Finance免费API (无需API密钥)
-const fetchRealTimeStockData = async () => {
-  try {
-    const symbols = TRACKED_STOCKS.map(stock => stock.symbol).join(',');
-    
-    // 使用Yahoo Finance API的免费接口
-    const response = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${symbols}?interval=1d&range=1d`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      console.warn('Yahoo Finance API request failed:', response.status);
-      return getFallbackData();
-    }
-
-    const data = await response.json();
-    console.log('Yahoo Finance API response:', data);
-    
-    // 如果Yahoo Finance不工作，使用备用的实时模拟数据
-    return getFallbackData();
-    
-  } catch (error) {
-    console.error('Error fetching from Yahoo Finance:', error);
+// 使用Alpha Vantage API获取实时股票数据
+const fetchRealTimeStockData = async (apiKey?: string) => {
+  if (!apiKey) {
+    console.warn('No API key available, using fallback data');
     return getFallbackData();
   }
+
+  try {
+    const promises = TRACKED_STOCKS.map(async (stock) => {
+      try {
+        // 使用Alpha Vantage GLOBAL_QUOTE API获取实时数据
+        const response = await fetch(
+          `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`
+        );
+
+        if (!response.ok) {
+          console.warn(`API request failed for ${stock.symbol}:`, response.status);
+          return null;
+        }
+
+        const data = await response.json();
+        
+        // Alpha Vantage全局报价响应格式
+        const quote = data['Global Quote'];
+        if (!quote || !quote['05. price']) {
+          console.warn(`No quote data available for ${stock.symbol}`, data);
+          return null;
+        }
+
+        const currentPrice = parseFloat(quote['05. price']);
+        const change = parseFloat(quote['09. change']);
+        const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+        const volume = quote['06. volume'];
+
+        return {
+          ...stock,
+          price: currentPrice.toFixed(2),
+          change: change.toFixed(2),
+          changePercent: changePercent.toFixed(2),
+          volume: formatVolume(volume),
+          isPositive: change >= 0,
+          timestamp: new Date().getTime()
+        };
+      } catch (error) {
+        console.error(`Error fetching data for ${stock.symbol}:`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(promises);
+    const validResults = results.filter(result => result !== null);
+    
+    // 如果没有获取到任何真实数据，使用备用数据
+    if (validResults.length === 0) {
+      console.warn('No valid data from Alpha Vantage, using fallback');
+      return getFallbackData();
+    }
+    
+    return validResults;
+  } catch (error) {
+    console.error('Error fetching from Alpha Vantage:', error);
+    return getFallbackData();
+  }
+};
+
+// 格式化交易量显示
+const formatVolume = (volume: string) => {
+  const num = parseInt(volume);
+  if (num >= 1000000000) {
+    return `${(num / 1000000000).toFixed(1)}B`;
+  } else if (num >= 1000000) {
+    return `${(num / 1000000).toFixed(1)}M`;
+  } else if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K`;
+  }
+  return volume;
 };
 
 // 备用数据生成器 - 生成接近真实的模拟数据
@@ -104,12 +153,40 @@ const StockDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiDialog, setShowApiDialog] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+
+  // 从localStorage获取API key
+  useEffect(() => {
+    const savedKey = localStorage.getItem('alphavantage_api_key');
+    if (savedKey) {
+      setApiKey(savedKey);
+    } else {
+      // 提供默认的API key
+      setApiKey('9D65JZM25N7RSKV6');
+      localStorage.setItem('alphavantage_api_key', '9D65JZM25N7RSKV6');
+    }
+  }, []);
+
+  // 保存API key
+  const saveApiKey = () => {
+    if (tempApiKey.trim()) {
+      localStorage.setItem('alphavantage_api_key', tempApiKey.trim());
+      setApiKey(tempApiKey.trim());
+      setShowApiDialog(false);
+      setTempApiKey('');
+      // 重新加载数据
+      loadStockData();
+    }
+  };
 
   // 获取数据的函数
   const loadStockData = async () => {
     try {
       setError(null);
-      const data = await fetchRealTimeStockData();
+      const currentApiKey = apiKey || localStorage.getItem('alphavantage_api_key');
+      const data = await fetchRealTimeStockData(currentApiKey);
       
       if (data.length > 0) {
         setStockData(data);
@@ -125,22 +202,27 @@ const StockDashboard = () => {
     }
   };
 
-  // 初始加载和定时刷新
+  // 初始加载和定时刷新  
   useEffect(() => {
-    loadStockData();
-    
-    // 每30秒更新一次（使用备用数据更频繁更新）
-    const interval = setInterval(loadStockData, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
+    if (apiKey) {
+      loadStockData();
+    }
+  }, [apiKey]);
+
+  useEffect(() => {
+    if (apiKey) {
+      // 每1分钟更新一次（Alpha Vantage API限制）
+      const interval = setInterval(loadStockData, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [apiKey]);
 
   if (loading) {
     return (
       <div className="glass-card p-6 rounded-lg animate-fade-in">
         <div className="flex items-center gap-2 mb-6">
           <TrendingUp className="w-5 h-5 text-primary animate-pulse" />
-          <h2 className="text-xl font-semibold">重点股票实时行情</h2>
+          <h2 className="text-xl font-semibold">Frank's Portfolio</h2>
         </div>
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
@@ -168,14 +250,45 @@ const StockDashboard = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-primary" />
-          <h2 className="text-xl font-semibold">重点股票实时行情</h2>
+          <h2 className="text-xl font-semibold">Frank's Portfolio</h2>
         </div>
-        {error && (
-          <div className="flex items-center gap-1 text-orange-500">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-xs">{error}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {error && (
+            <div className="flex items-center gap-1 text-orange-500">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs">{error}</span>
+            </div>
+          )}
+          <Dialog open={showApiDialog} onOpenChange={setShowApiDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Alpha Vantage API Settings</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">API Key</label>
+                  <Input
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    placeholder="Enter your Alpha Vantage API key"
+                    type="password"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Current: {apiKey ? `${apiKey.substring(0, 8)}...` : 'Not set'}
+                  </p>
+                </div>
+                <Button onClick={saveApiKey} className="w-full">
+                  Save API Key
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       
       {stockData.length === 0 ? (
@@ -239,7 +352,7 @@ const StockDashboard = () => {
           <div className="mt-4 pt-4 border-t border-secondary/30">
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>
-                实时模拟数据 • 每30秒更新 • 仅供参考，投资有风险
+                由 Alpha Vantage 提供实时数据 • 每1分钟更新 • 仅供参考，投资有风险
               </span>
               {lastUpdate && (
                 <span>
