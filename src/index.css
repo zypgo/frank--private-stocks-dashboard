@@ -4,13 +4,63 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* 日间模式 - 护眼黄色主题 */
+    --background: 45 30% 92%;
+    --foreground: 30 15% 15%;
+    --card: 45 20% 95%;
+    --card-foreground: 30 15% 15%;
+    --popover: 45 20% 95%;
+    --popover-foreground: 30 15% 15%;
+    --primary: 200 80% 60%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 45 15% 88%;
+    --secondary-foreground: 30 15% 15%;
+    --muted: 45 15% 85%;
+    --muted-foreground: 30 10% 45%;
+    --accent: 45 15% 88%;
+    --accent-foreground: 30 15% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 45 20% 82%;
+    --input: 45 20% 82%;
+    --ring: 200 80% 60%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+  }
+
+  .dark {
+    /* 夜间模式 - 深色主题 */
+    --background: 222 84% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 84% 5%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 84% 5%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 92% 76%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 218 11% 65%;
+    --accent: 215 28% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 216 34% 17%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+  }
+
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased transition-colors duration-300;
   }
 }
 
 .glass-card {
-  @apply bg-secondary bg-opacity-20 backdrop-blur-lg border border-white border-opacity-10 shadow-lg;
+  @apply bg-card/50 backdrop-blur-lg border border-border shadow-lg rounded-lg transition-colors duration-300;
 }
 
 .crypto-chart {
