@@ -28,66 +28,60 @@ const TRACKED_STOCKS = [
 // 使用Alpha Vantage API获取实时股票数据
 const fetchRealTimeStockData = async (apiKey?: string) => {
   if (!apiKey) {
-    console.warn('No API key available, using fallback data');
-    return getFallbackData();
+    throw new Error('API key is required');
   }
 
-  try {
-    const promises = TRACKED_STOCKS.map(async (stock) => {
-      try {
-        // 使用Alpha Vantage GLOBAL_QUOTE API获取实时数据
-        const response = await fetch(
-          `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`
-        );
+  console.log('Fetching real-time data from Alpha Vantage with API key:', apiKey.substring(0, 8) + '...');
 
-        if (!response.ok) {
-          console.warn(`API request failed for ${stock.symbol}:`, response.status);
-          return null;
-        }
+  const promises = TRACKED_STOCKS.map(async (stock) => {
+    try {
+      // 使用Alpha Vantage GLOBAL_QUOTE API获取实时数据
+      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
+      console.log(`Fetching ${stock.symbol} from:`, url);
+      
+      const response = await fetch(url);
 
-        const data = await response.json();
-        
-        // Alpha Vantage全局报价响应格式
-        const quote = data['Global Quote'];
-        if (!quote || !quote['05. price']) {
-          console.warn(`No quote data available for ${stock.symbol}`, data);
-          return null;
-        }
-
-        const currentPrice = parseFloat(quote['05. price']);
-        const change = parseFloat(quote['09. change']);
-        const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
-        const volume = quote['06. volume'];
-
-        return {
-          ...stock,
-          price: currentPrice.toFixed(2),
-          change: change.toFixed(2),
-          changePercent: changePercent.toFixed(2),
-          volume: formatVolume(volume),
-          isPositive: change >= 0,
-          timestamp: new Date().getTime()
-        };
-      } catch (error) {
-        console.error(`Error fetching data for ${stock.symbol}:`, error);
-        return null;
+      if (!response.ok) {
+        console.error(`API request failed for ${stock.symbol}:`, response.status);
+        throw new Error(`HTTP ${response.status}`);
       }
-    });
 
-    const results = await Promise.all(promises);
-    const validResults = results.filter(result => result !== null);
-    
-    // 如果没有获取到任何真实数据，使用备用数据
-    if (validResults.length === 0) {
-      console.warn('No valid data from Alpha Vantage, using fallback');
-      return getFallbackData();
+      const data = await response.json();
+      console.log(`Raw data for ${stock.symbol}:`, data);
+      
+      // Alpha Vantage全局报价响应格式
+      const quote = data['Global Quote'];
+      if (!quote || !quote['05. price']) {
+        console.error(`No quote data available for ${stock.symbol}`, data);
+        throw new Error('Invalid quote data');
+      }
+
+      const currentPrice = parseFloat(quote['05. price']);
+      const change = parseFloat(quote['09. change']);
+      const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+      const volume = quote['06. volume'];
+
+      const result = {
+        ...stock,
+        price: currentPrice.toFixed(2),
+        change: change.toFixed(2),
+        changePercent: changePercent.toFixed(2),
+        volume: formatVolume(volume),
+        isPositive: change >= 0,
+        timestamp: new Date().getTime()
+      };
+      
+      console.log(`Processed data for ${stock.symbol}:`, result);
+      return result;
+    } catch (error) {
+      console.error(`Error fetching data for ${stock.symbol}:`, error);
+      throw error;
     }
-    
-    return validResults;
-  } catch (error) {
-    console.error('Error fetching from Alpha Vantage:', error);
-    return getFallbackData();
-  }
+  });
+
+  const results = await Promise.all(promises);
+  console.log('All fetched results:', results);
+  return results;
 };
 
 // 格式化交易量显示
@@ -103,50 +97,6 @@ const formatVolume = (volume: string) => {
   return volume;
 };
 
-// 备用数据生成器 - 生成接近真实的模拟数据
-const getFallbackData = () => {
-  // 基于真实股票的大概价格范围
-  const stockBasePrices = {
-    'AAPL': 190,
-    'GOOGL': 140,
-    'HSY': 180,
-    'KHC': 35,
-    'MDLZ': 65,
-    'PEP': 165,
-    'STZ': 240,
-    'DEO': 130,
-    'LVMUY': 70,
-    'PDD': 110,
-    'MU': 95,
-    'QCOM': 155,
-    'UNH': 520
-  };
-
-  return TRACKED_STOCKS.map(stock => {
-    const basePrice = stockBasePrices[stock.symbol] || 100;
-    // 添加小幅随机波动 (-3% 到 +3%)
-    const variation = (Math.random() - 0.5) * 0.06;
-    const currentPrice = basePrice * (1 + variation);
-    
-    // 生成日内变化 (-5% 到 +5%)
-    const changePercent = (Math.random() - 0.5) * 10;
-    const change = (currentPrice * changePercent) / 100;
-    
-    // 生成交易量
-    const volumes = ['1.2B', '850M', '2.1B', '456M', '1.8B', '920M', '1.5B'];
-    const volume = volumes[Math.floor(Math.random() * volumes.length)];
-    
-    return {
-      ...stock,
-      price: currentPrice.toFixed(2),
-      change: change.toFixed(2),
-      changePercent: changePercent.toFixed(2),
-      volume,
-      isPositive: changePercent >= 0,
-      timestamp: new Date().getTime()
-    };
-  });
-};
 
 const StockDashboard = () => {
   const [stockData, setStockData] = useState([]);
@@ -185,18 +135,22 @@ const StockDashboard = () => {
   const loadStockData = async () => {
     try {
       setError(null);
+      setLoading(true);
       const currentApiKey = apiKey || localStorage.getItem('alphavantage_api_key');
-      const data = await fetchRealTimeStockData(currentApiKey);
       
-      if (data.length > 0) {
-        setStockData(data);
-        setLastUpdate(new Date());
-      } else {
-        setError("暂无股票数据");
+      if (!currentApiKey) {
+        setError("需要Alpha Vantage API密钥");
+        return;
       }
+      
+      const data = await fetchRealTimeStockData(currentApiKey);
+      setStockData(data);
+      setLastUpdate(new Date());
+      console.log('Stock data loaded successfully:', data);
     } catch (err) {
-      setError("数据获取失败");
+      setError(`数据获取失败: ${err.message}`);
       console.error('Load stock data error:', err);
+      setStockData([]); // Clear any existing data on error
     } finally {
       setLoading(false);
     }
