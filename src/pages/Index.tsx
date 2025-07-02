@@ -3,12 +3,13 @@ import MarketStats from "@/components/MarketStats";
 import CryptoChart from "@/components/CryptoChart";
 import PortfolioCard from "@/components/PortfolioCard";
 import CryptoList from "@/components/CryptoList";
-import FearGreedIndex from "@/components/FearGreedIndex";
 import TrendingSearch from "@/components/TrendingSearch";
 import GainersLosers from "@/components/GainersLosers";
 import CryptoSearch from "@/components/CryptoSearch";
 import StockMarket from "@/components/StockMarket";
 import PreciousMetals from "@/components/PreciousMetals";
+import ConsumerGoods from "@/components/ConsumerGoods";
+import TechStocks from "@/components/TechStocks";
 
 const Index = () => {
   return (
@@ -31,11 +32,8 @@ const Index = () => {
           </div>
         </div>
         
-        {/* 功能区域 - 调整为3列布局 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <div>
-            <FearGreedIndex />
-          </div>
+        {/* 功能区域 - 调整为2列布局 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <div>
             <TrendingSearch />
           </div>
@@ -51,6 +49,16 @@ const Index = () => {
           </div>
           <div>
             <PreciousMetals />
+          </div>
+        </div>
+
+        {/* 新增股票组件区域 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <div>
+            <ConsumerGoods />
+          </div>
+          <div>
+            <TechStocks />
           </div>
         </div>
 
