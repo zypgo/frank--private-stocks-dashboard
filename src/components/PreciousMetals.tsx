@@ -1,81 +1,129 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Coins } from "lucide-react";
+import { TrendingUp, TrendingDown, Coins, Key } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-// 使用智能模拟数据，基于时间变化模拟市场波动
-const fetchMetalsData = async () => {
+// 使用Metals-API获取真实贵金属数据
+const fetchMetalsData = async (apiKey: string) => {
+  if (!apiKey) {
+    throw new Error('API Key is required');
+  }
+
   try {
-    // 由于免费的贵金属API也有各种限制，使用智能模拟数据
-    const baseData = [
-      { 
-        symbol: "XAU", 
-        name: "黄金", 
-        basePrice: 2065.40,
-        unit: "美元/盎司"
-      },
-      { 
-        symbol: "XAG", 
-        name: "白银", 
-        basePrice: 24.85,
-        unit: "美元/盎司"
-      },
-    ];
-    
-    // 基于当前时间生成变化，模拟市场波动
-    const now = new Date();
-    
-    return baseData.map((metal, index) => {
-      // 贵金属波动通常比股票小，所以使用较小的波动率
-      const timeVariation = Math.sin((now.getTime() + index * 2000) / 120000) * 0.015; // 1.5%波动
-      const randomVariation = (Math.random() - 0.5) * 0.008; // 0.8%随机波动
-      
-      const totalVariation = timeVariation + randomVariation;
-      const currentPrice = metal.basePrice * (1 + totalVariation);
-      const change = currentPrice - metal.basePrice;
-      const changePercent = (change / metal.basePrice) * 100;
-      
-      return {
-        symbol: metal.symbol,
-        name: metal.name,
-        price: currentPrice,
-        change: change,
-        changePercent: changePercent,
-        unit: metal.unit
-      };
-    });
-    
-  } catch (error) {
-    console.error('Failed to fetch metals data:', error);
-    // 返回fallback数据
-    return [
+    const response = await fetch(
+      `https://metals-api.com/api/latest?access_key=${apiKey}&base=USD&symbols=XAU,XAG`,
       {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error?.info || 'API request failed');
+    }
+    
+    const results = [];
+    
+    // 处理黄金数据 (XAU price in USD per troy ounce)
+    if (data.rates?.XAU) {
+      const goldPricePerOunce = 1 / data.rates.XAU; // Convert to USD per ounce
+      results.push({
         symbol: "XAU",
         name: "黄金",
-        price: 2065.40,
-        change: 12.30,
-        changePercent: 0.60,
+        price: goldPricePerOunce,
+        change: 0, // API doesn't provide change, would need historical data
+        changePercent: 0,
         unit: "美元/盎司"
-      },
-      {
+      });
+    }
+    
+    // 处理白银数据 (XAG price in USD per troy ounce)
+    if (data.rates?.XAG) {
+      const silverPricePerOunce = 1 / data.rates.XAG; // Convert to USD per ounce
+      results.push({
         symbol: "XAG",
         name: "白银",
-        price: 24.85,
-        change: -0.15,
-        changePercent: -0.60,
+        price: silverPricePerOunce,
+        change: 0, // API doesn't provide change, would need historical data
+        changePercent: 0,
         unit: "美元/盎司"
-      },
-    ];
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch metals data:', error);
+    throw error;
   }
 };
 
 const PreciousMetals = () => {
-  const { data: metalsData, isLoading, error } = useQuery({
-    queryKey: ['metalsData'],
-    queryFn: fetchMetalsData,
-    refetchInterval: 30000, // 每30秒刷新一次，提高实时性
-    retry: 2,
-    staleTime: 10000, // 10秒内的数据认为是新鲜的
+  const [apiKey, setApiKey] = useState(localStorage.getItem('metals_api_key') || '');
+  const [tempApiKey, setTempApiKey] = useState('');
+  
+  const { data: metalsData, isLoading, error, refetch } = useQuery({
+    queryKey: ['metalsData', apiKey],
+    queryFn: () => fetchMetalsData(apiKey),
+    enabled: !!apiKey,
+    refetchInterval: 300000, // 5分钟刷新一次，贵金属价格变化较慢
+    retry: 1,
+    staleTime: 60000,
   });
+
+  const handleSaveApiKey = () => {
+    setApiKey(tempApiKey);
+    localStorage.setItem('metals_api_key', tempApiKey);
+    refetch();
+  };
+
+  if (!apiKey) {
+    return (
+      <div className="glass-card p-6 rounded-lg animate-fade-in">
+        <div className="flex items-center gap-2 mb-6">
+          <Coins className="w-5 h-5 text-yellow-500" />
+          <h2 className="text-xl font-semibold">贵金属行情</h2>
+        </div>
+        
+        <div className="text-center py-8">
+          <Key className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="font-medium mb-2">需要API密钥</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            请输入您的Metals API密钥来获取真实贵金属数据
+          </p>
+          <div className="max-w-sm mx-auto space-y-3">
+            <Input
+              type="password"
+              placeholder="输入Metals API Key"
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+            />
+            <Button onClick={handleSaveApiKey} disabled={!tempApiKey}>
+              保存密钥
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            获取免费API密钥: <a 
+              href="https://metals-api.com/pricing" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              metals-api.com
+            </a> (1000次/月免费)
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card p-6 rounded-lg animate-fade-in">
@@ -150,7 +198,7 @@ const PreciousMetals = () => {
       
       <div className="mt-4 pt-4 border-t border-secondary/30">
         <p className="text-xs text-muted-foreground text-center">
-          数据仅供参考，投资有风险
+          Metals-API • 真实贵金属数据 • 仅供参考，投资有风险
         </p>
       </div>
     </div>

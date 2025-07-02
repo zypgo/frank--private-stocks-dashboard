@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, Key } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // 美股七巨头股票代码
 const MAGNIFICENT_SEVEN = [
@@ -13,67 +15,114 @@ const MAGNIFICENT_SEVEN = [
   { symbol: "META", name: "Meta" },
 ];
 
-// 使用定时更新的模拟数据来演示实时效果
-const fetchStockData = async () => {
+// 使用Alpha Vantage API获取真实股票数据
+const fetchStockData = async (apiKey: string) => {
+  if (!apiKey) {
+    throw new Error('API Key is required');
+  }
+
   try {
-    // 由于大多数免费股票API都有CORS限制，我们使用智能模拟数据
-    // 这些数据会根据时间变化来模拟真实的市场波动
-    const baseData = [
-      { symbol: "AAPL", name: "Apple", basePrice: 183.25 },
-      { symbol: "MSFT", name: "Microsoft", basePrice: 415.30 },
-      { symbol: "GOOGL", name: "Alphabet", basePrice: 161.50 },
-      { symbol: "AMZN", name: "Amazon", basePrice: 145.75 },
-      { symbol: "NVDA", name: "NVIDIA", basePrice: 865.20 },
-      { symbol: "TSLA", name: "Tesla", basePrice: 245.60 },
-      { symbol: "META", name: "Meta", basePrice: 485.90 },
-    ];
-    
-    // 基于当前时间生成变化，模拟市场波动
-    const now = new Date();
-    const timeVariation = Math.sin(now.getTime() / 100000) * 0.02; // 2%的基础波动
-    
-    return baseData.map((stock, index) => {
-      // 为每个股票生成不同的波动模式
-      const stockVariation = Math.sin((now.getTime() + index * 1000) / 50000) * 0.03; // 3%波动
-      const randomVariation = (Math.random() - 0.5) * 0.01; // 1%随机波动
+    const promises = MAGNIFICENT_SEVEN.map(async (stock) => {
+      const response = await fetch(
+        `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
       
-      const totalVariation = timeVariation + stockVariation + randomVariation;
-      const currentPrice = stock.basePrice * (1 + totalVariation);
-      const change = currentPrice - stock.basePrice;
-      const changePercent = (change / stock.basePrice) * 100;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data['Error Message'] || data['Note']) {
+        throw new Error(data['Error Message'] || 'API limit reached');
+      }
+      
+      const quote = data['Global Quote'];
+      if (!quote) {
+        throw new Error('No quote data received');
+      }
       
       return {
         symbol: stock.symbol,
         name: stock.name,
-        price: currentPrice,
-        change: change,
-        changePercent: changePercent
+        price: parseFloat(quote['05. price']) || 0,
+        change: parseFloat(quote['09. change']) || 0,
+        changePercent: parseFloat(quote['10. change percent'].replace('%', '')) || 0
       };
     });
-    
+
+    const results = await Promise.all(promises);
+    return results;
   } catch (error) {
     console.error('Failed to fetch stock data:', error);
-    // 返回静态fallback数据
-    return [
-      { symbol: "AAPL", name: "Apple", price: 183.25, change: 1.25, changePercent: 0.68 },
-      { symbol: "MSFT", name: "Microsoft", price: 415.30, change: -2.15, changePercent: -0.51 },
-      { symbol: "GOOGL", name: "Alphabet", price: 161.50, change: 0.85, changePercent: 0.53 },
-      { symbol: "AMZN", name: "Amazon", price: 145.75, change: 2.40, changePercent: 1.67 },
-      { symbol: "NVDA", name: "NVIDIA", price: 865.20, change: 15.80, changePercent: 1.86 },
-      { symbol: "TSLA", name: "Tesla", price: 245.60, change: -3.25, changePercent: -1.31 },
-      { symbol: "META", name: "Meta", price: 485.90, change: 4.50, changePercent: 0.94 },
-    ];
+    throw error;
   }
 };
 
 const StockMarket = () => {
-  const { data: stockData, isLoading, error } = useQuery({
-    queryKey: ['stockData'],
-    queryFn: fetchStockData,
-    refetchInterval: 30000, // 每30秒刷新一次，提高实时性
-    retry: 2,
-    staleTime: 10000, // 10秒内的数据认为是新鲜的
+  const [apiKey, setApiKey] = useState(localStorage.getItem('alphavantage_api_key') || '');
+  const [tempApiKey, setTempApiKey] = useState('');
+  
+  const { data: stockData, isLoading, error, refetch } = useQuery({
+    queryKey: ['stockData', apiKey],
+    queryFn: () => fetchStockData(apiKey),
+    enabled: !!apiKey,
+    refetchInterval: 60000, // Alpha Vantage有调用限制，降低频率
+    retry: 1,
+    staleTime: 30000,
   });
+
+  const handleSaveApiKey = () => {
+    setApiKey(tempApiKey);
+    localStorage.setItem('alphavantage_api_key', tempApiKey);
+    refetch();
+  };
+
+  if (!apiKey) {
+    return (
+      <div className="glass-card p-6 rounded-lg animate-fade-in">
+        <div className="flex items-center gap-2 mb-6">
+          <Activity className="w-5 h-5 text-primary" />
+          <h2 className="text-xl font-semibold">美股七巨头</h2>
+        </div>
+        
+        <div className="text-center py-8">
+          <Key className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="font-medium mb-2">需要API密钥</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            请输入您的Alpha Vantage API密钥来获取真实股票数据
+          </p>
+          <div className="max-w-sm mx-auto space-y-3">
+            <Input
+              type="password"
+              placeholder="输入Alpha Vantage API Key"
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+            />
+            <Button onClick={handleSaveApiKey} disabled={!tempApiKey}>
+              保存密钥
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            获取免费API密钥: <a 
+              href="https://www.alphavantage.co/support/#api-key" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              alphavantage.co
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card p-6 rounded-lg animate-fade-in">
@@ -144,7 +193,7 @@ const StockMarket = () => {
       
       <div className="mt-4 pt-4 border-t border-secondary/30">
         <p className="text-xs text-muted-foreground text-center">
-          实时模拟数据 • 仅供参考，投资有风险
+          Alpha Vantage API • 真实股票数据 • 仅供参考，投资有风险
         </p>
       </div>
     </div>
