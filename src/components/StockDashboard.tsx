@@ -31,87 +31,128 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
     throw new Error('API key is required');
   }
 
-  console.log('Fetching real-time data from Alpha Vantage with API key:', apiKey.substring(0, 8) + '...');
+  console.log('开始获取Alpha Vantage数据，API密钥:', apiKey.substring(0, 8) + '...');
 
-  // Alpha Vantage免费计划每分钟最多25个请求，每天最多500个请求
-  // 我们需要限制并发请求数量
+  // 先测试一个简单的API调用
+  try {
+    const testUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${apiKey}`;
+    console.log('测试API调用:', testUrl);
+    
+    const testResponse = await fetch(testUrl);
+    console.log('测试响应状态:', testResponse.status);
+    
+    const testData = await testResponse.json();
+    console.log('测试响应数据:', testData);
+    
+    // 检查API限制提示
+    if (testData['Information'] && testData['Information'].includes('API call frequency')) {
+      throw new Error('API调用频率过高，请稍后重试');
+    }
+    
+    if (testData['Note'] && testData['Note'].includes('API call frequency')) {
+      throw new Error('API调用频率过高，请稍后重试');
+    }
+    
+    if (testData['Error Message']) {
+      throw new Error(`API错误: ${testData['Error Message']}`);
+    }
+    
+    // 检查是否有数据
+    if (!testData['Global Quote']) {
+      console.error('API响应缺少Global Quote数据:', testData);
+      throw new Error('API响应格式不正确，请检查API密钥');
+    }
+    
+  } catch (error) {
+    console.error('API测试失败:', error);
+    throw new Error(`API测试失败: ${error.message}`);
+  }
+
   const results = [];
   
-  for (let i = 0; i < TRACKED_STOCKS.length; i++) {
-    const stock = TRACKED_STOCKS[i];
+  // 只获取前5个股票以避免API限制
+  const limitedStocks = TRACKED_STOCKS.slice(0, 5);
+  
+  for (let i = 0; i < limitedStocks.length; i++) {
+    const stock = limitedStocks[i];
     
     try {
       const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
-      console.log(`Fetching ${stock.symbol} from:`, url);
+      console.log(`正在获取${stock.symbol}数据...`);
       
       const response = await fetch(url);
       
       if (!response.ok) {
-        console.error(`API request failed for ${stock.symbol}:`, response.status, response.statusText);
+        console.error(`${stock.symbol}请求失败:`, response.status, response.statusText);
         continue;
       }
 
       const data = await response.json();
-      console.log(`Raw data for ${stock.symbol}:`, data);
+      console.log(`${stock.symbol}原始数据:`, data);
       
-      // 检查API错误响应
+      // 检查各种错误情况
+      if (data['Information'] && data['Information'].includes('API call frequency')) {
+        console.warn(`${stock.symbol}: API调用频率限制`);
+        break; // 停止后续请求
+      }
+      
+      if (data['Note'] && data['Note'].includes('API call frequency')) {
+        console.warn(`${stock.symbol}: API调用频率限制`);
+        break; // 停止后续请求
+      }
+      
       if (data['Error Message']) {
-        console.error(`API Error for ${stock.symbol}:`, data['Error Message']);
+        console.error(`${stock.symbol} API错误:`, data['Error Message']);
         continue;
       }
       
-      if (data['Note']) {
-        console.warn(`API Note for ${stock.symbol}:`, data['Note']);
-        continue;
-      }
-      
-      // Alpha Vantage全局报价响应格式
       const quote = data['Global Quote'];
       if (!quote) {
-        console.error(`No Global Quote data for ${stock.symbol}:`, data);
+        console.error(`${stock.symbol}缺少Global Quote数据:`, data);
         continue;
       }
       
-      // 检查必需字段
+      // 根据API文档，字段名是带有编号和点的
       const price = quote['05. price'];
       const change = quote['09. change'];  
       const changePercent = quote['10. change percent'];
       const volume = quote['06. volume'];
       
-      if (!price || !change || !changePercent) {
-        console.error(`Missing required fields for ${stock.symbol}:`, quote);
+      if (!price) {
+        console.error(`${stock.symbol}缺少价格数据:`, quote);
         continue;
       }
 
       const result = {
         ...stock,
         price: parseFloat(price).toFixed(2),
-        change: parseFloat(change).toFixed(2),
-        changePercent: parseFloat(changePercent.replace('%', '')).toFixed(2),
-        volume: formatVolume(volume),
-        isPositive: parseFloat(change) >= 0,
+        change: change ? parseFloat(change).toFixed(2) : '0.00',
+        changePercent: changePercent ? parseFloat(changePercent.replace('%', '')).toFixed(2) : '0.00',
+        volume: volume ? formatVolume(volume) : 'N/A',
+        isPositive: change ? parseFloat(change) >= 0 : true,
         timestamp: new Date().getTime()
       };
       
-      console.log(`Processed data for ${stock.symbol}:`, result);
+      console.log(`${stock.symbol}处理后数据:`, result);
       results.push(result);
       
-      // 在请求之间添加延迟以避免API限制 (免费版每分钟25个请求)
-      if (i < TRACKED_STOCKS.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 3秒延迟
+      // 添加延迟避免API限制 (免费版每分钟最多5次请求)
+      if (i < limitedStocks.length - 1) {
+        console.log('等待15秒避免API限制...');
+        await new Promise(resolve => setTimeout(resolve, 15000)); // 15秒延迟
       }
       
     } catch (error) {
-      console.error(`Error fetching data for ${stock.symbol}:`, error);
+      console.error(`获取${stock.symbol}数据时出错:`, error);
       continue;
     }
   }
 
   if (results.length === 0) {
-    throw new Error('无法获取任何股票数据，请检查API密钥或网络连接');
+    throw new Error('无法获取任何股票数据，请检查API密钥或稍后重试');
   }
   
-  console.log('Successfully fetched results:', results);
+  console.log('成功获取股票数据:', results);
   return results;
 };
 
