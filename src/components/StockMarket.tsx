@@ -13,67 +13,46 @@ const MAGNIFICENT_SEVEN = [
   { symbol: "META", name: "Meta" },
 ];
 
-// 使用Yahoo Finance API获取实时股票数据
+// 使用Financial Modeling Prep的免费API获取实时股票数据
 const fetchStockData = async () => {
   try {
-    const promises = MAGNIFICENT_SEVEN.map(async (stock) => {
-      try {
-        // 使用Yahoo Finance API
-        const response = await fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${stock.symbol}?interval=1d&range=1d`,
-          {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-          }
-        );
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    const symbols = MAGNIFICENT_SEVEN.map(stock => stock.symbol).join(',');
+    
+    // 使用Financial Modeling Prep免费API (每天250次请求限制)
+    const response = await fetch(
+      `https://financialmodelingprep.com/api/v3/quote/${symbols}?apikey=demo`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
         }
-        
-        const data = await response.json();
-        const result = data.chart.result[0];
-        const meta = result.meta;
-        const currentPrice = meta.regularMarketPrice;
-        const previousClose = meta.previousClose;
-        const change = currentPrice - previousClose;
-        const changePercent = (change / previousClose) * 100;
-        
-        return {
-          symbol: stock.symbol,
-          name: stock.name,
-          price: currentPrice,
-          change: change,
-          changePercent: changePercent
-        };
-      } catch (error) {
-        console.error(`Error fetching ${stock.symbol}:`, error);
-        // 返回fallback数据
-        const fallbackData = {
-          "AAPL": { price: 183.25, change: 1.25, changePercent: 0.68 },
-          "MSFT": { price: 415.30, change: -2.15, changePercent: -0.51 },
-          "GOOGL": { price: 161.50, change: 0.85, changePercent: 0.53 },
-          "AMZN": { price: 145.75, change: 2.40, changePercent: 1.67 },
-          "NVDA": { price: 865.20, change: 15.80, changePercent: 1.86 },
-          "TSLA": { price: 245.60, change: -3.25, changePercent: -1.31 },
-          "META": { price: 485.90, change: 4.50, changePercent: 0.94 },
-        };
-        
-        const fallback = fallbackData[stock.symbol] || { price: 0, change: 0, changePercent: 0 };
-        return {
-          symbol: stock.symbol,
-          name: stock.name,
-          ...fallback
-        };
       }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('No data received');
+    }
+    
+    return data.map((stock) => {
+      const companyInfo = MAGNIFICENT_SEVEN.find(company => company.symbol === stock.symbol);
+      return {
+        symbol: stock.symbol,
+        name: companyInfo?.name || stock.name,
+        price: stock.price || 0,
+        change: stock.change || 0,
+        changePercent: stock.changesPercentage || 0
+      };
     });
     
-    const results = await Promise.all(promises);
-    return results;
   } catch (error) {
     console.error('Failed to fetch stock data:', error);
-    // 返回mock数据作为完全fallback
+    // 返回fallback数据
     return [
       { symbol: "AAPL", name: "Apple", price: 183.25, change: 1.25, changePercent: 0.68 },
       { symbol: "MSFT", name: "Microsoft", price: 415.30, change: -2.15, changePercent: -0.51 },
