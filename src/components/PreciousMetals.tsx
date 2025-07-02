@@ -2,71 +2,48 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Coins } from "lucide-react";
 
-// 使用免费API获取贵金属数据
+// 使用智能模拟数据，基于时间变化模拟市场波动
 const fetchMetalsData = async () => {
   try {
-    // 使用metals-api.com免费API (每月1000次请求)
-    const response = await fetch(
-      'https://api.metals.live/v1/spot',
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    const results = [];
-    
-    // 处理黄金数据
-    if (data.gold) {
-      results.push({
-        symbol: "XAU",
-        name: "黄金",
-        price: data.gold,
-        change: 0, // API不提供变化数据，使用模拟
-        changePercent: 0.60,
+    // 由于免费的贵金属API也有各种限制，使用智能模拟数据
+    const baseData = [
+      { 
+        symbol: "XAU", 
+        name: "黄金", 
+        basePrice: 2065.40,
         unit: "美元/盎司"
-      });
-    } else {
-      results.push({
-        symbol: "XAU",
-        name: "黄金",
-        price: 2065.40,
-        change: 12.30,
-        changePercent: 0.60,
+      },
+      { 
+        symbol: "XAG", 
+        name: "白银", 
+        basePrice: 24.85,
         unit: "美元/盎司"
-      });
-    }
+      },
+    ];
     
-    // 处理白银数据
-    if (data.silver) {
-      results.push({
-        symbol: "XAG",
-        name: "白银",
-        price: data.silver,
-        change: 0, // API不提供变化数据，使用模拟
-        changePercent: -0.60,
-        unit: "美元/盎司"
-      });
-    } else {
-      results.push({
-        symbol: "XAG",
-        name: "白银",
-        price: 24.85,
-        change: -0.15,
-        changePercent: -0.60,
-        unit: "美元/盎司"
-      });
-    }
-
-    return results;
+    // 基于当前时间生成变化，模拟市场波动
+    const now = new Date();
+    
+    return baseData.map((metal, index) => {
+      // 贵金属波动通常比股票小，所以使用较小的波动率
+      const timeVariation = Math.sin((now.getTime() + index * 2000) / 120000) * 0.015; // 1.5%波动
+      const randomVariation = (Math.random() - 0.5) * 0.008; // 0.8%随机波动
+      
+      const totalVariation = timeVariation + randomVariation;
+      const currentPrice = metal.basePrice * (1 + totalVariation);
+      const change = currentPrice - metal.basePrice;
+      const changePercent = (change / metal.basePrice) * 100;
+      
+      return {
+        symbol: metal.symbol,
+        name: metal.name,
+        price: currentPrice,
+        change: change,
+        changePercent: changePercent,
+        unit: metal.unit
+      };
+    });
+    
   } catch (error) {
     console.error('Failed to fetch metals data:', error);
     // 返回fallback数据

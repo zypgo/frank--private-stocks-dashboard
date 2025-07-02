@@ -13,46 +13,47 @@ const MAGNIFICENT_SEVEN = [
   { symbol: "META", name: "Meta" },
 ];
 
-// 使用Financial Modeling Prep的免费API获取实时股票数据
+// 使用定时更新的模拟数据来演示实时效果
 const fetchStockData = async () => {
   try {
-    const symbols = MAGNIFICENT_SEVEN.map(stock => stock.symbol).join(',');
+    // 由于大多数免费股票API都有CORS限制，我们使用智能模拟数据
+    // 这些数据会根据时间变化来模拟真实的市场波动
+    const baseData = [
+      { symbol: "AAPL", name: "Apple", basePrice: 183.25 },
+      { symbol: "MSFT", name: "Microsoft", basePrice: 415.30 },
+      { symbol: "GOOGL", name: "Alphabet", basePrice: 161.50 },
+      { symbol: "AMZN", name: "Amazon", basePrice: 145.75 },
+      { symbol: "NVDA", name: "NVIDIA", basePrice: 865.20 },
+      { symbol: "TSLA", name: "Tesla", basePrice: 245.60 },
+      { symbol: "META", name: "Meta", basePrice: 485.90 },
+    ];
     
-    // 使用Financial Modeling Prep免费API (每天250次请求限制)
-    const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/quote/${symbols}?apikey=demo`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
-    );
+    // 基于当前时间生成变化，模拟市场波动
+    const now = new Date();
+    const timeVariation = Math.sin(now.getTime() / 100000) * 0.02; // 2%的基础波动
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error('No data received');
-    }
-    
-    return data.map((stock) => {
-      const companyInfo = MAGNIFICENT_SEVEN.find(company => company.symbol === stock.symbol);
+    return baseData.map((stock, index) => {
+      // 为每个股票生成不同的波动模式
+      const stockVariation = Math.sin((now.getTime() + index * 1000) / 50000) * 0.03; // 3%波动
+      const randomVariation = (Math.random() - 0.5) * 0.01; // 1%随机波动
+      
+      const totalVariation = timeVariation + stockVariation + randomVariation;
+      const currentPrice = stock.basePrice * (1 + totalVariation);
+      const change = currentPrice - stock.basePrice;
+      const changePercent = (change / stock.basePrice) * 100;
+      
       return {
         symbol: stock.symbol,
-        name: companyInfo?.name || stock.name,
-        price: stock.price || 0,
-        change: stock.change || 0,
-        changePercent: stock.changesPercentage || 0
+        name: stock.name,
+        price: currentPrice,
+        change: change,
+        changePercent: changePercent
       };
     });
     
   } catch (error) {
     console.error('Failed to fetch stock data:', error);
-    // 返回fallback数据
+    // 返回静态fallback数据
     return [
       { symbol: "AAPL", name: "Apple", price: 183.25, change: 1.25, changePercent: 0.68 },
       { symbol: "MSFT", name: "Microsoft", price: 415.30, change: -2.15, changePercent: -0.51 },
@@ -140,6 +141,12 @@ const StockMarket = () => {
           ))}
         </div>
       )}
+      
+      <div className="mt-4 pt-4 border-t border-secondary/30">
+        <p className="text-xs text-muted-foreground text-center">
+          实时模拟数据 • 仅供参考，投资有风险
+        </p>
+      </div>
     </div>
   );
 };
