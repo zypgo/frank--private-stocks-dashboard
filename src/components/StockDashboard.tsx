@@ -3,7 +3,6 @@ import { TrendingUp, TrendingDown, AlertCircle, Settings, RefreshCw } from "luci
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import SecurityManager from "@/utils/security";
 
 // 所有追踪的股票
 const TRACKED_STOCKS = [
@@ -57,9 +56,7 @@ const getCachedData = () => {
       
       if (now - timestamp < CACHE_DURATION) {
         console.log('从缓存加载数据');
-        // Sanitize cached data before returning
-        const parsedData = JSON.parse(cachedData);
-        return SecurityManager.sanitizeApiData(parsedData);
+        return JSON.parse(cachedData);
       }
     }
   } catch (error) {
@@ -71,9 +68,7 @@ const getCachedData = () => {
 // 保存数据到缓存
 const setCachedData = (data) => {
   try {
-    // Sanitize data before caching
-    const sanitizedData = SecurityManager.sanitizeApiData(data);
-    localStorage.setItem(CACHE_KEY, JSON.stringify(sanitizedData));
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
     localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().getTime().toString());
     console.log('数据已保存到缓存');
   } catch (error) {
@@ -143,18 +138,13 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
         continue;
       }
 
-      // Validate and sanitize numeric data
-      const sanitizedPrice = SecurityManager.validateNumericData(price);
-      const sanitizedChange = SecurityManager.validateNumericData(change);
-      const sanitizedChangePercent = SecurityManager.validateNumericData(changePercent?.replace('%', ''));
-      
       const result = {
         ...stock,
-        price: sanitizedPrice ? sanitizedPrice.toFixed(2) : '0.00',
-        change: sanitizedChange ? sanitizedChange.toFixed(2) : '0.00',
-        changePercent: sanitizedChangePercent ? sanitizedChangePercent.toFixed(2) : '0.00',
+        price: parseFloat(price).toFixed(2),
+        change: change ? parseFloat(change).toFixed(2) : '0.00',
+        changePercent: changePercent ? parseFloat(changePercent.replace('%', '')).toFixed(2) : '0.00',
         volume: volume ? formatVolume(volume) : 'N/A',
-        isPositive: sanitizedChange ? sanitizedChange >= 0 : true,
+        isPositive: change ? parseFloat(change) >= 0 : true,
         timestamp: new Date().getTime()
       };
       
@@ -208,37 +198,27 @@ const StockDashboard = () => {
   const [tempApiKey, setTempApiKey] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  // 从localStorage获取API key - 移除硬编码密钥
+  // 从localStorage获取API key
   useEffect(() => {
-    const savedKey = SecurityManager.getSecureItem('alphavantage_api_key');
-    if (savedKey && SecurityManager.validateApiKey(savedKey)) {
+    const savedKey = localStorage.getItem('alphavantage_api_key');
+    if (savedKey) {
       setApiKey(savedKey);
     } else {
-      // 不再提供默认API key，要求用户输入
-      setError("请设置有效的Alpha Vantage API密钥");
+      // 提供默认的API key
+      setApiKey('9D65JZM25N7RSKV6');
+      localStorage.setItem('alphavantage_api_key', '9D65JZM25N7RSKV6');
     }
   }, []);
 
   // 保存API key
-  const saveApiKey = async () => {
-    const trimmedKey = tempApiKey.trim();
-    
-    // Validate API key format
-    if (!SecurityManager.validateApiKey(trimmedKey)) {
-      setError("无效的API密钥格式。请输入有效的Alpha Vantage API密钥");
-      return;
-    }
-    
-    try {
-      await SecurityManager.setSecureItem('alphavantage_api_key', trimmedKey);
-      setApiKey(trimmedKey);
+  const saveApiKey = () => {
+    if (tempApiKey.trim()) {
+      localStorage.setItem('alphavantage_api_key', tempApiKey.trim());
+      setApiKey(tempApiKey.trim());
       setShowApiDialog(false);
       setTempApiKey('');
-      setError(null);
       // 重新加载数据
       loadStockData(true);
-    } catch (error) {
-      setError("保存API密钥失败，请重试");
     }
   };
 
@@ -248,7 +228,7 @@ const StockDashboard = () => {
       setError(null);
       setLoading(true);
       
-      const currentApiKey = apiKey || SecurityManager.getSecureItem('alphavantage_api_key');
+      const currentApiKey = apiKey || localStorage.getItem('alphavantage_api_key');
       
       if (!currentApiKey) {
         setError("需要Alpha Vantage API密钥");

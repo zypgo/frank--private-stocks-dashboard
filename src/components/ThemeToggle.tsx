@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import SecurityManager from "@/utils/security";
 
 const ThemeToggle = () => {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // 检查localStorage中保存的主题偏好 - 使用安全存储
-    const savedTheme = SecurityManager.getSecureItem("theme");
+    // 检查localStorage中保存的主题偏好
+    const savedTheme = localStorage.getItem("theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     
     // 默认使用日间模式（护眼黄色）
@@ -25,15 +24,11 @@ const ThemeToggle = () => {
     }
   };
 
-  const toggleTheme = async () => {
+  const toggleTheme = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
     updateTheme(newTheme);
-    try {
-      await SecurityManager.setSecureItem("theme", newTheme ? "dark" : "light");
-    } catch (error) {
-      console.error("Failed to save theme preference:", error);
-    }
+    localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
   return (
