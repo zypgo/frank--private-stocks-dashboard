@@ -33,54 +33,85 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
 
   console.log('Fetching real-time data from Alpha Vantage with API key:', apiKey.substring(0, 8) + '...');
 
-  const promises = TRACKED_STOCKS.map(async (stock) => {
+  // Alpha Vantage免费计划每分钟最多25个请求，每天最多500个请求
+  // 我们需要限制并发请求数量
+  const results = [];
+  
+  for (let i = 0; i < TRACKED_STOCKS.length; i++) {
+    const stock = TRACKED_STOCKS[i];
+    
     try {
-      // 使用Alpha Vantage GLOBAL_QUOTE API获取实时数据
       const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
       console.log(`Fetching ${stock.symbol} from:`, url);
       
       const response = await fetch(url);
-
+      
       if (!response.ok) {
-        console.error(`API request failed for ${stock.symbol}:`, response.status);
-        throw new Error(`HTTP ${response.status}`);
+        console.error(`API request failed for ${stock.symbol}:`, response.status, response.statusText);
+        continue;
       }
 
       const data = await response.json();
       console.log(`Raw data for ${stock.symbol}:`, data);
       
+      // 检查API错误响应
+      if (data['Error Message']) {
+        console.error(`API Error for ${stock.symbol}:`, data['Error Message']);
+        continue;
+      }
+      
+      if (data['Note']) {
+        console.warn(`API Note for ${stock.symbol}:`, data['Note']);
+        continue;
+      }
+      
       // Alpha Vantage全局报价响应格式
       const quote = data['Global Quote'];
-      if (!quote || !quote['05. price']) {
-        console.error(`No quote data available for ${stock.symbol}`, data);
-        throw new Error('Invalid quote data');
+      if (!quote) {
+        console.error(`No Global Quote data for ${stock.symbol}:`, data);
+        continue;
       }
-
-      const currentPrice = parseFloat(quote['05. price']);
-      const change = parseFloat(quote['09. change']);
-      const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+      
+      // 检查必需字段
+      const price = quote['05. price'];
+      const change = quote['09. change'];  
+      const changePercent = quote['10. change percent'];
       const volume = quote['06. volume'];
+      
+      if (!price || !change || !changePercent) {
+        console.error(`Missing required fields for ${stock.symbol}:`, quote);
+        continue;
+      }
 
       const result = {
         ...stock,
-        price: currentPrice.toFixed(2),
-        change: change.toFixed(2),
-        changePercent: changePercent.toFixed(2),
+        price: parseFloat(price).toFixed(2),
+        change: parseFloat(change).toFixed(2),
+        changePercent: parseFloat(changePercent.replace('%', '')).toFixed(2),
         volume: formatVolume(volume),
-        isPositive: change >= 0,
+        isPositive: parseFloat(change) >= 0,
         timestamp: new Date().getTime()
       };
       
       console.log(`Processed data for ${stock.symbol}:`, result);
-      return result;
+      results.push(result);
+      
+      // 在请求之间添加延迟以避免API限制 (免费版每分钟25个请求)
+      if (i < TRACKED_STOCKS.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 3秒延迟
+      }
+      
     } catch (error) {
       console.error(`Error fetching data for ${stock.symbol}:`, error);
-      throw error;
+      continue;
     }
-  });
+  }
 
-  const results = await Promise.all(promises);
-  console.log('All fetched results:', results);
+  if (results.length === 0) {
+    throw new Error('无法获取任何股票数据，请检查API密钥或网络连接');
+  }
+  
+  console.log('Successfully fetched results:', results);
   return results;
 };
 
@@ -164,12 +195,12 @@ const StockDashboard = () => {
   }, [apiKey]);
 
   useEffect(() => {
-    if (apiKey) {
-      // 每1分钟更新一次（Alpha Vantage API限制）
-      const interval = setInterval(loadStockData, 60000);
+    if (apiKey && stockData.length > 0) {
+      // 由于API限制，每5分钟更新一次
+      const interval = setInterval(loadStockData, 300000); // 5分钟
       return () => clearInterval(interval);
     }
-  }, [apiKey]);
+  }, [apiKey, stockData.length]);
 
   if (loading) {
     return (
@@ -303,10 +334,10 @@ const StockDashboard = () => {
             </table>
           </div>
           
-          <div className="mt-4 pt-4 border-t border-secondary/30">
+            <div className="mt-4 pt-4 border-t border-secondary/30">
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>
-                由 Alpha Vantage 提供实时数据 • 每1分钟更新 • 仅供参考，投资有风险
+                由 Alpha Vantage 提供数据 • 每5分钟更新 • 免费版有API限制 • 仅供参考，投资有风险
               </span>
               {lastUpdate && (
                 <span>
