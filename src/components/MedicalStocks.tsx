@@ -1,38 +1,32 @@
 import { useState } from "react";
-import { ShoppingCart } from "lucide-react";
+import { Heart } from "lucide-react";
 import TradingViewWidget from 'react-tradingview-widget';
 
-// 消费品股票代码和TradingView符号
-const CONSUMER_GOODS_STOCKS = [
-  { symbol: "HSY", name: "好时", tvSymbol: "NYSE:HSY" },
-  { symbol: "KHC", name: "卡夫亨氏", tvSymbol: "NASDAQ:KHC" },
-  { symbol: "MDLZ", name: "亿滋", tvSymbol: "NASDAQ:MDLZ" },
-  { symbol: "PEP", name: "百事可乐", tvSymbol: "NASDAQ:PEP" },
-  { symbol: "STZ", name: "星座品牌", tvSymbol: "NYSE:STZ" },
-  { symbol: "DEO", name: "帝亚吉欧", tvSymbol: "NYSE:DEO" },
-  { symbol: "LVMUY", name: "路威酩轩", tvSymbol: "OTCMKTS:LVMUY" },
+// 医疗与公共事业股票代码和TradingView符号
+const MEDICAL_STOCKS = [
+  { symbol: "UNH", name: "联合健康", tvSymbol: "NYSE:UNH" },
 ];
 
-const ConsumerGoods = () => {
-  const [selectedStock, setSelectedStock] = useState(CONSUMER_GOODS_STOCKS[0]);
+const MedicalStocks = () => {
+  const [selectedStock, setSelectedStock] = useState(MEDICAL_STOCKS[0]);
 
   return (
     <div className="glass-card p-6 rounded-lg animate-fade-in">
       <div className="flex items-center gap-2 mb-6">
-        <ShoppingCart className="w-5 h-5 text-green-500" />
-        <h2 className="text-xl font-semibold">消费品股票</h2>
+        <Heart className="w-5 h-5 text-red-500" />
+        <h2 className="text-xl font-semibold">医疗与公共事业股票</h2>
       </div>
       
       {/* 股票选择器 */}
       <div className="mb-4">
         <div className="flex flex-wrap gap-2">
-          {CONSUMER_GOODS_STOCKS.map((stock) => (
+          {MEDICAL_STOCKS.map((stock) => (
             <button
               key={stock.symbol}
               onClick={() => setSelectedStock(stock)}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                 selectedStock.symbol === stock.symbol
-                  ? 'bg-green-500 text-green-50'
+                  ? 'bg-red-500 text-red-50'
                   : 'bg-secondary/20 hover:bg-secondary/30 text-secondary-foreground'
               }`}
             >
@@ -48,7 +42,7 @@ const ConsumerGoods = () => {
       {/* TradingView 图表 */}
       <div className="h-[400px] w-full rounded-lg overflow-hidden bg-background">
         <TradingViewWidget
-          key={`consumer_${selectedStock.symbol}_${Date.now()}`} // 强制重新渲染
+          key={`medical_${selectedStock.symbol}_${Date.now()}`} // 强制重新渲染
           symbol={selectedStock.tvSymbol}
           theme="dark"
           locale="zh_CN"
@@ -60,7 +54,7 @@ const ConsumerGoods = () => {
           enable_publishing={false}
           hide_top_toolbar={false}
           save_image={false}
-          container_id={`tradingview_consumer_${selectedStock.symbol}`}
+          container_id={`tradingview_medical_${selectedStock.symbol}`}
           studies={[
             "MASimple@tv-basicstudies"
           ]}
@@ -79,4 +73,4 @@ const ConsumerGoods = () => {
   );
 };
 
-export default ConsumerGoods;
+export default MedicalStocks;

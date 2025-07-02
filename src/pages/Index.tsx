@@ -10,6 +10,8 @@ import StockMarket from "@/components/StockMarket";
 import PreciousMetals from "@/components/PreciousMetals";
 import ConsumerGoods from "@/components/ConsumerGoods";
 import TechStocks from "@/components/TechStocks";
+import MedicalStocks from "@/components/MedicalStocks";
+import StockDashboard from "@/components/StockDashboard";
 
 const Index = () => {
   return (
@@ -59,6 +61,16 @@ const Index = () => {
           </div>
           <div>
             <TechStocks />
+          </div>
+        </div>
+
+        {/* 医疗股票区域 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <div>
+            <MedicalStocks />
+          </div>
+          <div>
+            <StockDashboard />
           </div>
         </div>
 
