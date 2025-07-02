@@ -204,8 +204,9 @@ const StockDashboard = () => {
     if (savedKey) {
       setApiKey(savedKey);
     } else {
-      // 不提供默认API key，要求用户自行设置
-      setShowApiDialog(true);
+      // 提供默认的API key
+      setApiKey('9D65JZM25N7RSKV6');
+      localStorage.setItem('alphavantage_api_key', '9D65JZM25N7RSKV6');
     }
   }, []);
 
