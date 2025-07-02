@@ -46,15 +46,15 @@ const StockMarket = () => {
       </div>
 
       {/* TradingView 图表 */}
-      <div className="h-[400px] w-full rounded-lg overflow-hidden">
+      <div className="h-[400px] w-full rounded-lg overflow-hidden bg-background">
         <TradingViewWidget
-          key={selectedStock.symbol} // 确保组件在股票变化时重新渲染
+          key={`stock_${selectedStock.symbol}_${Date.now()}`} // 强制重新渲染
           symbol={selectedStock.tvSymbol}
           theme="dark"
           locale="zh_CN"
-          autosize
+          autosize={true}
           hide_side_toolbar={false}
-          allow_symbol_change={false}
+          allow_symbol_change={true}
           interval="D"
           toolbar_bg="#141413"
           enable_publishing={false}
@@ -62,9 +62,11 @@ const StockMarket = () => {
           save_image={false}
           container_id={`tradingview_stock_${selectedStock.symbol}`}
           studies={[
-            "MASimple@tv-basicstudies",
-            "RSI@tv-basicstudies"
+            "MASimple@tv-basicstudies"
           ]}
+          width="100%"
+          height="400"
+          loading_screen={{ backgroundColor: "#131722" }}
         />
       </div>
       

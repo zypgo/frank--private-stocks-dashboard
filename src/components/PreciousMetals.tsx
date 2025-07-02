@@ -2,12 +2,12 @@ import { useState } from "react";
 import { Coins } from "lucide-react";
 import TradingViewWidget from 'react-tradingview-widget';
 
-// 贵金属交易符号
+// 贵金属交易符号 - 使用更稳定的数据源
 const PRECIOUS_METALS = [
-  { symbol: "XAU", name: "黄金", tvSymbol: "TVC:GOLD", unit: "美元/盎司" },
-  { symbol: "XAG", name: "白银", tvSymbol: "TVC:SILVER", unit: "美元/盎司" },
-  { symbol: "XPT", name: "铂金", tvSymbol: "NYMEX:PL1!", unit: "美元/盎司" },
-  { symbol: "XPD", name: "钯金", tvSymbol: "NYMEX:PA1!", unit: "美元/盎司" },
+  { symbol: "XAU", name: "黄金", tvSymbol: "FOREXCOM:XAUUSD", unit: "美元/盎司" },
+  { symbol: "XAG", name: "白银", tvSymbol: "FOREXCOM:XAGUSD", unit: "美元/盎司" },
+  { symbol: "XPT", name: "铂金", tvSymbol: "FOREXCOM:XPTUSD", unit: "美元/盎司" },
+  { symbol: "XPD", name: "钯金", tvSymbol: "FOREXCOM:XPDUSD", unit: "美元/盎司" },
 ];
 
 const PreciousMetals = () => {
@@ -43,15 +43,15 @@ const PreciousMetals = () => {
       </div>
 
       {/* TradingView 图表 */}
-      <div className="h-[400px] w-full rounded-lg overflow-hidden">
+      <div className="h-[400px] w-full rounded-lg overflow-hidden bg-background">
         <TradingViewWidget
-          key={selectedMetal.symbol} // 确保组件在贵金属变化时重新渲染
+          key={`metal_${selectedMetal.symbol}_${Date.now()}`} // 强制重新渲染
           symbol={selectedMetal.tvSymbol}
           theme="dark"
           locale="zh_CN"
-          autosize
+          autosize={true}
           hide_side_toolbar={false}
-          allow_symbol_change={false}
+          allow_symbol_change={true}
           interval="D"
           toolbar_bg="#141413"
           enable_publishing={false}
@@ -59,9 +59,11 @@ const PreciousMetals = () => {
           save_image={false}
           container_id={`tradingview_metal_${selectedMetal.symbol}`}
           studies={[
-            "MASimple@tv-basicstudies",
-            "RSI@tv-basicstudies"
+            "MASimple@tv-basicstudies"
           ]}
+          width="100%"
+          height="400"
+          loading_screen={{ backgroundColor: "#131722" }}
         />
       </div>
       
