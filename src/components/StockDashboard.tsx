@@ -9,6 +9,9 @@ const TRACKED_STOCKS = [
   // 七巨头中的选定股票
   { symbol: "AAPL", name: "Apple", category: "七巨头" },
   { symbol: "GOOGL", name: "Alphabet", category: "七巨头" },
+  // 黄金ETF
+  { symbol: "GLD", name: "SPDR黄金ETF", category: "贵金属" },
+  { symbol: "IAU", name: "iShares黄金ETF", category: "贵金属" },
   // 消费品股票
   { symbol: "HSY", name: "好时", category: "消费品" },
   { symbol: "KHC", name: "卡夫亨氏", category: "消费品" },
@@ -86,8 +89,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
 
   const results = [];
   
-  // 只获取前5个股票以避免API限制
-  const limitedStocks = TRACKED_STOCKS.slice(0, 5);
+  // 获取前10个股票（考虑API限制但显示更多）
+  const limitedStocks = TRACKED_STOCKS.slice(0, 10);
   
   for (let i = 0; i < limitedStocks.length; i++) {
     const stock = limitedStocks[i];
