@@ -249,7 +249,7 @@ const StockDashboard = () => {
       
       if (!currentApiKey) {
         setError("需要Alpha Vantage API密钥");
-        // 加载mock数据
+        // 加载所有股票的mock数据
         const mockData = generateMockData();
         setStockData(mockData);
         setLastUpdate(new Date());
@@ -259,7 +259,7 @@ const StockDashboard = () => {
       // 如果不是强制刷新，先尝试加载缓存数据
       if (!forceRefresh) {
         const cachedData = getCachedData();
-        if (cachedData) {
+        if (cachedData && cachedData.length >= TRACKED_STOCKS.length) {
           setStockData(cachedData);
           setLastUpdate(new Date());
           return;
@@ -269,25 +269,59 @@ const StockDashboard = () => {
       // 尝试从API获取数据
       try {
         const data = await fetchRealTimeStockData(currentApiKey);
-        setStockData(data);
-        setCachedData(data); // 保存到缓存
+        
+        // 确保返回的数据包含所有股票
+        if (data.length < TRACKED_STOCKS.length) {
+          // 如果API数据不完整，用模拟数据补齐缺失的股票
+          const existingSymbols = data.map(stock => stock.symbol);
+          const missingStocks = TRACKED_STOCKS.filter(stock => !existingSymbols.includes(stock.symbol));
+          
+          const mockForMissing = missingStocks.map(stock => ({
+            ...stock,
+            price: (Math.random() * 200 + 50).toFixed(2),
+            change: (Math.random() * 10 - 5).toFixed(2),
+            changePercent: (Math.random() * 8 - 4).toFixed(2),
+            volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+            isPositive: Math.random() > 0.5,
+            timestamp: new Date().getTime(),
+            isMockData: true
+          }));
+          
+          const completeData = [...data, ...mockForMissing];
+          setStockData(completeData);
+          setCachedData(completeData);
+        } else {
+          setStockData(data);
+          setCachedData(data);
+        }
+        
         setLastUpdate(new Date());
         console.log('Stock data loaded successfully:', data);
       } catch (apiError) {
-        console.warn('API获取失败，尝试使用缓存或模拟数据:', apiError.message);
+        console.warn('API获取失败，使用缓存或模拟数据:', apiError.message);
         
         // 如果API失败，尝试使用缓存数据
         const cachedData = getCachedData();
-        if (cachedData) {
+        if (cachedData && cachedData.length >= TRACKED_STOCKS.length) {
           console.log('使用缓存数据');
           setStockData(cachedData);
           setLastUpdate(new Date());
           setError('API调用限制，显示缓存数据');
         } else {
-          // 如果没有缓存，使用模拟数据
-          console.log('使用模拟数据');
-          const mockData = generateMockData();
-          setStockData(mockData);
+          // 如果没有缓存，使用所有股票的模拟数据
+          console.log('使用所有股票的模拟数据');
+          const allMockData = TRACKED_STOCKS.map(stock => ({
+            ...stock,
+            price: (Math.random() * 200 + 50).toFixed(2),
+            change: (Math.random() * 10 - 5).toFixed(2),
+            changePercent: (Math.random() * 8 - 4).toFixed(2),
+            volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+            isPositive: Math.random() > 0.5,
+            timestamp: new Date().getTime(),
+            isMockData: true
+          }));
+          
+          setStockData(allMockData);
           setLastUpdate(new Date());
           setError('API不可用，显示模拟数据');
         }
@@ -296,9 +330,19 @@ const StockDashboard = () => {
       setError(`数据获取失败: ${err.message}`);
       console.error('Load stock data error:', err);
       
-      // 尝试加载mock数据作为最后的备选
-      const mockData = generateMockData();
-      setStockData(mockData);
+      // 最后的备选：加载所有股票的mock数据
+      const allMockData = TRACKED_STOCKS.map(stock => ({
+        ...stock,
+        price: (Math.random() * 200 + 50).toFixed(2),
+        change: (Math.random() * 10 - 5).toFixed(2),
+        changePercent: (Math.random() * 8 - 4).toFixed(2),
+        volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+        isPositive: Math.random() > 0.5,
+        timestamp: new Date().getTime(),
+        isMockData: true
+      }));
+      
+      setStockData(allMockData);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
@@ -338,7 +382,7 @@ const StockDashboard = () => {
           <h2 className="text-xl font-semibold">Frank's Portfolio</h2>
         </div>
         <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
+          {[...Array(TRACKED_STOCKS.length)].map((_, i) => (
             <div key={i} className="flex justify-between items-center p-3 rounded bg-secondary/10 animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-primary/20"></div>
