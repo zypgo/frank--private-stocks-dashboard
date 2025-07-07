@@ -89,8 +89,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
 
   const results = [];
   
-  // 获取前10个股票（考虑API限制但显示更多）
-  const limitedStocks = TRACKED_STOCKS.slice(0, 10);
+  // 显示所有追踪的股票
+  const limitedStocks = TRACKED_STOCKS;
   
   for (let i = 0; i < limitedStocks.length; i++) {
     const stock = limitedStocks[i];
@@ -156,8 +156,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
       
       // 添加延迟避免API限制 (免费版每分钟最多5次请求)
       if (i < limitedStocks.length - 1) {
-        console.log('等待15秒避免API限制...');
-        await new Promise(resolve => setTimeout(resolve, 15000)); // 15秒延迟
+        console.log('等待12秒避免API限制...');
+        await new Promise(resolve => setTimeout(resolve, 12000)); // 12秒延迟，确保不超过5次/分钟
       }
       
     } catch (error) {
