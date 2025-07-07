@@ -89,91 +89,106 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
 
   const results = [];
   
-  // 显示所有追踪的股票，但为了避免API限制，只获取前5个的实时数据
-  // 其余的用模拟数据填充
-  const apiStocks = TRACKED_STOCKS.slice(0, 5); // 只用API获取前5个
-  const mockStocks = TRACKED_STOCKS.slice(5); // 其余用模拟数据
+  // 尝试批量获取所有股票数据，但为了避免API限制，分批处理
+  const batchSize = 10; // 每批处理10个
+  const batches = [];
   
-  // 获取API数据
-  for (let i = 0; i < apiStocks.length; i++) {
-    const stock = apiStocks[i];
+  for (let i = 0; i < TRACKED_STOCKS.length; i += batchSize) {
+    batches.push(TRACKED_STOCKS.slice(i, i + batchSize));
+  }
+  
+  // 处理每一批
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+    console.log(`处理第${batchIndex + 1}批，共${batch.length}个股票`);
+    
+    // 并发请求一批股票
+    const batchPromises = batch.map(async (stock) => {
+      try {
+        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
+        console.log(`正在获取${stock.symbol}数据...`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          console.error(`${stock.symbol}请求失败:`, response.status, response.statusText);
+          return null;
+        }
+
+        const data = await response.json();
+        console.log(`${stock.symbol}原始数据:`, data);
+        
+        // 检查API限制
+        if (data['Note'] && data['Note'].includes('API call frequency')) {
+          throw new Error('API_LIMIT_REACHED');
+        }
+        
+        if (data['Error Message']) {
+          console.error(`${stock.symbol} API错误:`, data['Error Message']);
+          return null;
+        }
+        
+        const quote = data['Global Quote'];
+        if (!quote) {
+          console.error(`${stock.symbol}缺少Global Quote数据:`, data);
+          return null;
+        }
+        
+        const price = quote['05. price'];
+        const change = quote['09. change'];  
+        const changePercent = quote['10. change percent'];
+        const volume = quote['06. volume'];
+        
+        if (!price) {
+          console.error(`${stock.symbol}缺少价格数据:`, quote);
+          return null;
+        }
+
+        return {
+          ...stock,
+          price: parseFloat(price).toFixed(2),
+          change: change ? parseFloat(change).toFixed(2) : '0.00',
+          changePercent: changePercent ? parseFloat(changePercent.replace('%', '')).toFixed(2) : '0.00',
+          volume: volume ? formatVolume(volume) : 'N/A',
+          isPositive: change ? parseFloat(change) >= 0 : true,
+          timestamp: new Date().getTime(),
+          dataSource: 'API' // 标识数据源
+        };
+        
+      } catch (error) {
+        if (error.message === 'API_LIMIT_REACHED') {
+          throw error;
+        }
+        console.error(`获取${stock.symbol}数据时出错:`, error);
+        return null;
+      }
+    });
     
     try {
-      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
-      console.log(`正在获取${stock.symbol}数据...`);
+      const batchResults = await Promise.all(batchPromises);
+      const validResults = batchResults.filter(result => result !== null);
+      results.push(...validResults);
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.error(`${stock.symbol}请求失败:`, response.status, response.statusText);
-        continue;
-      }
-
-      const data = await response.json();
-      console.log(`${stock.symbol}原始数据:`, data);
-      
-      // 检查API限制 - 如果达到限制，抛出特定错误
-      if (data['Note'] && data['Note'].includes('API call frequency')) {
-        throw new Error('API_LIMIT_REACHED');
-      }
-      
-      if (data['Error Message']) {
-        console.error(`${stock.symbol} API错误:`, data['Error Message']);
-        continue;
-      }
-      
-      // Information字段只是提示，不是错误，继续处理数据
-      if (data['Information'] && data['Information'].includes('rate limit')) {
-        console.log('API限制提示:', data['Information']);
-      }
-      
-      const quote = data['Global Quote'];
-      if (!quote) {
-        console.error(`${stock.symbol}缺少Global Quote数据:`, data);
-        continue;
-      }
-      
-      // 根据API文档，字段名是带有编号和点的
-      const price = quote['05. price'];
-      const change = quote['09. change'];  
-      const changePercent = quote['10. change percent'];
-      const volume = quote['06. volume'];
-      
-      if (!price) {
-        console.error(`${stock.symbol}缺少价格数据:`, quote);
-        continue;
-      }
-
-      const result = {
-        ...stock,
-        price: parseFloat(price).toFixed(2),
-        change: change ? parseFloat(change).toFixed(2) : '0.00',
-        changePercent: changePercent ? parseFloat(changePercent.replace('%', '')).toFixed(2) : '0.00',
-        volume: volume ? formatVolume(volume) : 'N/A',
-        isPositive: change ? parseFloat(change) >= 0 : true,
-        timestamp: new Date().getTime()
-      };
-      
-      console.log(`${stock.symbol}处理后数据:`, result);
-      results.push(result);
-      
-      // 添加延迟避免API限制 (免费版每分钟最多5次请求)
-      if (i < apiStocks.length - 1) {
-        console.log('等待12秒避免API限制...');
-        await new Promise(resolve => setTimeout(resolve, 12000)); // 12秒延迟，确保不超过5次/分钟
+      // 批次间延迟，放宽到30秒
+      if (batchIndex < batches.length - 1) {
+        console.log('等待30秒后处理下一批...');
+        await new Promise(resolve => setTimeout(resolve, 30000));
       }
       
     } catch (error) {
       if (error.message === 'API_LIMIT_REACHED') {
-        throw error;
+        console.log('API限制达到，停止后续请求');
+        break;
       }
-      console.error(`获取${stock.symbol}数据时出错:`, error);
-      continue;
+      console.error(`批次${batchIndex + 1}处理失败:`, error);
     }
   }
 
-  // 为剩余股票生成模拟数据
-  const mockResults = mockStocks.map(stock => ({
+  // 为没有获取到API数据的股票生成模拟数据
+  const apiSymbols = results.map(r => r.symbol);
+  const missingStocks = TRACKED_STOCKS.filter(stock => !apiSymbols.includes(stock.symbol));
+  
+  const mockResults = missingStocks.map(stock => ({
     ...stock,
     price: (Math.random() * 200 + 50).toFixed(2),
     change: (Math.random() * 10 - 5).toFixed(2),
@@ -181,12 +196,11 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
     volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
     isPositive: Math.random() > 0.5,
     timestamp: new Date().getTime(),
-    isMockData: true
+    isMockData: true,
+    dataSource: 'Mock' // 标识数据源
   }));
 
-  // 合并API数据和模拟数据
   const allResults = [...results, ...mockResults];
-  
   console.log('成功获取所有股票数据:', allResults);
   return allResults;
 };
@@ -477,19 +491,31 @@ const StockDashboard = () => {
               <tbody>
                 {stockData.map((stock, index) => (
                   <tr key={stock.symbol} className="border-b border-secondary/10 hover:bg-secondary/5 transition-colors">
-                    <td className="py-4 px-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-medium text-primary">
-                            {stock.symbol.slice(0, 2)}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium">{stock.name}</div>
-                          <div className="text-xs text-muted-foreground">{stock.symbol}</div>
-                        </div>
-                      </div>
-                    </td>
+                     <td className="py-4 px-2">
+                       <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                           <span className="text-xs font-medium text-primary">
+                             {stock.symbol.slice(0, 2)}
+                           </span>
+                         </div>
+                         <div>
+                           <div className="flex items-center gap-2">
+                             <span className="font-medium">{stock.name}</span>
+                             {(stock.isMockData || stock.dataSource === 'Mock') && (
+                               <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-md dark:bg-orange-900/20 dark:text-orange-400">
+                                 模拟
+                               </span>
+                             )}
+                             {stock.dataSource === 'API' && (
+                               <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-md dark:bg-green-900/20 dark:text-green-400">
+                                 实时
+                               </span>
+                             )}
+                           </div>
+                           <div className="text-xs text-muted-foreground">{stock.symbol}</div>
+                         </div>
+                       </div>
+                     </td>
                     <td className="text-right py-4 px-2 font-medium">
                       ${stock.price}
                     </td>
