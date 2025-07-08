@@ -42,42 +42,7 @@ const generateMockData = () => {
   }));
 };
 
-// 缓存相关的键名
-const CACHE_KEY = 'frank_portfolio_data';
-const CACHE_TIMESTAMP_KEY = 'frank_portfolio_timestamp';
-const CACHE_DURATION = 60 * 60 * 1000; // 1小时
-
-// 从缓存获取数据
-const getCachedData = () => {
-  try {
-    const cachedData = localStorage.getItem(CACHE_KEY);
-    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-    
-    if (cachedData && cachedTimestamp) {
-      const timestamp = parseInt(cachedTimestamp);
-      const now = new Date().getTime();
-      
-      if (now - timestamp < CACHE_DURATION) {
-        console.log('从缓存加载数据');
-        return JSON.parse(cachedData);
-      }
-    }
-  } catch (error) {
-    console.error('读取缓存失败:', error);
-  }
-  return null;
-};
-
-// 保存数据到缓存
-const setCachedData = (data) => {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().getTime().toString());
-    console.log('数据已保存到缓存');
-  } catch (error) {
-    console.error('保存缓存失败:', error);
-  }
-};
+// 简化的数据生成和获取，移除缓存机制
 
 // 使用FMP API获取实时股票数据 (批量请求)
 const fetchRealTimeStockData = async (apiKey?: string) => {
@@ -233,7 +198,7 @@ const StockDashboard = () => {
     }
   };
 
-  // 获取数据的函数
+  // 获取数据的函数 - 移除缓存，每次都刷新
   const loadStockData = async (forceRefresh = false) => {
     try {
       setError(null);
@@ -243,82 +208,40 @@ const StockDashboard = () => {
       
       if (!currentApiKey) {
         setError("需要FMP API密钥");
-        // 加载所有股票的mock数据
+        // 每次都生成新的模拟数据
         const mockData = generateMockData();
         setStockData(mockData);
         setLastUpdate(new Date());
         return;
       }
 
-      // 如果不是强制刷新，先尝试加载缓存数据
-      if (!forceRefresh) {
-        const cachedData = getCachedData();
-        if (cachedData && cachedData.length >= TRACKED_STOCKS.length) {
-          setStockData(cachedData);
-          setLastUpdate(new Date());
-          return;
-        }
-      }
-
-      // 尝试从API获取数据
+      // 直接尝试从API获取数据，不使用缓存
       try {
+        console.log('强制刷新，直接调用FMP API');
         const data = await fetchRealTimeStockData(currentApiKey);
         
-        // 确保返回的数据包含所有股票
-        if (data.length < TRACKED_STOCKS.length) {
-          // 如果API数据不完整，用模拟数据补齐缺失的股票
-          const existingSymbols = data.map(stock => stock.symbol);
-          const missingStocks = TRACKED_STOCKS.filter(stock => !existingSymbols.includes(stock.symbol));
-          
-          const mockForMissing = missingStocks.map(stock => ({
-            ...stock,
-            price: (Math.random() * 200 + 50).toFixed(2),
-            change: (Math.random() * 10 - 5).toFixed(2),
-            changePercent: (Math.random() * 8 - 4).toFixed(2),
-            volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-            isPositive: Math.random() > 0.5,
-            timestamp: new Date().getTime(),
-            isMockData: true
-          }));
-          
-          const completeData = [...data, ...mockForMissing];
-          setStockData(completeData);
-          setCachedData(completeData);
-        } else {
-          setStockData(data);
-          setCachedData(data);
-        }
-        
+        setStockData(data);
         setLastUpdate(new Date());
         console.log('Stock data loaded successfully:', data);
       } catch (apiError) {
-        console.warn('API获取失败，使用缓存或模拟数据:', apiError.message);
+        console.warn('FMP API获取失败，使用模拟数据:', apiError.message);
         
-        // 如果API失败，尝试使用缓存数据
-        const cachedData = getCachedData();
-        if (cachedData && cachedData.length >= TRACKED_STOCKS.length) {
-          console.log('使用缓存数据');
-          setStockData(cachedData);
-          setLastUpdate(new Date());
-          setError('API调用限制，显示缓存数据');
-        } else {
-          // 如果没有缓存，使用所有股票的模拟数据
-          console.log('使用所有股票的模拟数据');
-          const allMockData = TRACKED_STOCKS.map(stock => ({
-            ...stock,
-            price: (Math.random() * 200 + 50).toFixed(2),
-            change: (Math.random() * 10 - 5).toFixed(2),
-            changePercent: (Math.random() * 8 - 4).toFixed(2),
-            volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-            isPositive: Math.random() > 0.5,
-            timestamp: new Date().getTime(),
-            isMockData: true
-          }));
-          
-          setStockData(allMockData);
-          setLastUpdate(new Date());
-          setError('API不可用，显示模拟数据');
-        }
+        // 如果API失败，生成新的模拟数据
+        const allMockData = TRACKED_STOCKS.map(stock => ({
+          ...stock,
+          price: (Math.random() * 200 + 50).toFixed(2),
+          change: (Math.random() * 10 - 5).toFixed(2),
+          changePercent: (Math.random() * 8 - 4).toFixed(2),
+          volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+          isPositive: Math.random() > 0.5,
+          timestamp: new Date().getTime(),
+          isMockData: true,
+          dataSource: 'Mock'
+        }));
+        
+        setStockData(allMockData);
+        setLastUpdate(new Date());
+        setError('API不可用，显示模拟数据');
       }
     } catch (err) {
       setError(`数据获取失败: ${err.message}`);
@@ -344,29 +267,22 @@ const StockDashboard = () => {
     }
   };
 
-  // 手动刷新数据
+  // 手动刷新数据 - 每次都强制获取新数据
   const handleManualRefresh = async () => {
     setRefreshing(true);
-    await loadStockData(true); // 强制刷新
+    console.log('手动刷新触发');
+    await loadStockData(true); // 强制刷新，不使用缓存
   };
 
-  // 初始加载
+  // 初始加载 - 每次都获取新数据
   useEffect(() => {
     if (apiKey) {
-      loadStockData();
+      console.log('初始加载触发');
+      loadStockData(true); // 强制刷新
     }
   }, [apiKey]);
 
-  // 每小时自动刷新
-  useEffect(() => {
-    if (apiKey) {
-      const interval = setInterval(() => {
-        console.log('执行每小时自动刷新');
-        loadStockData(true);
-      }, 60 * 60 * 1000); // 1小时
-      return () => clearInterval(interval);
-    }
-  }, [apiKey]);
+  // 移除自动刷新，只在用户操作时刷新
 
   if (loading) {
     return (
@@ -523,7 +439,7 @@ const StockDashboard = () => {
             <div className="mt-4 pt-4 border-t border-secondary/30">
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>
-                由 FMP 提供数据 • 每小时自动更新 • 免费版250次/日限制 • 仅供参考，投资有风险
+                由 FMP 提供数据 • 点击刷新获取新数据 • 免费版250次/日限制 • 仅供参考，投资有风险
               </span>
               {lastUpdate && (
                 <span>
