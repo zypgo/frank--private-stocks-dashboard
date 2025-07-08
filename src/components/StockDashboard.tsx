@@ -79,130 +79,110 @@ const setCachedData = (data) => {
   }
 };
 
-// 使用Alpha Vantage API获取实时股票数据
+// 使用FMP API获取实时股票数据 (批量请求)
 const fetchRealTimeStockData = async (apiKey?: string) => {
   if (!apiKey) {
-    throw new Error('API key is required');
+    throw new Error('FMP API key is required');
   }
 
-  console.log('开始获取Alpha Vantage数据，API密钥:', apiKey.substring(0, 8) + '...');
+  console.log('开始获取FMP批量数据，API密钥:', apiKey.substring(0, 8) + '...');
 
-  const results = [];
-  
-  // 尝试批量获取所有股票数据，但为了避免API限制，分批处理
-  const batchSize = 10; // 每批处理10个
-  const batches = [];
-  
-  for (let i = 0; i < TRACKED_STOCKS.length; i += batchSize) {
-    batches.push(TRACKED_STOCKS.slice(i, i + batchSize));
-  }
-  
-  // 处理每一批
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-    const batch = batches[batchIndex];
-    console.log(`处理第${batchIndex + 1}批，共${batch.length}个股票`);
+  try {
+    // 创建股票符号列表 (逗号分隔)
+    const symbolList = TRACKED_STOCKS.map(stock => stock.symbol).join(',');
     
-    // 并发请求一批股票
-    const batchPromises = batch.map(async (stock) => {
-      try {
-        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`;
-        console.log(`正在获取${stock.symbol}数据...`);
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          console.error(`${stock.symbol}请求失败:`, response.status, response.statusText);
-          return null;
-        }
+    // FMP批量查询API端点
+    const url = `https://financialmodelingprep.com/api/v3/quote/${symbolList}?apikey=${apiKey}`;
+    
+    console.log('FMP批量请求URL:', url);
+    console.log('请求的股票符号:', symbolList);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`FMP API请求失败: ${response.status} ${response.statusText}`);
+    }
 
-        const data = await response.json();
-        console.log(`${stock.symbol}原始数据:`, data);
-        
-        // 检查API限制
-        if (data['Note'] && data['Note'].includes('API call frequency')) {
-          throw new Error('API_LIMIT_REACHED');
-        }
-        
-        if (data['Error Message']) {
-          console.error(`${stock.symbol} API错误:`, data['Error Message']);
-          return null;
-        }
-        
-        const quote = data['Global Quote'];
-        if (!quote) {
-          console.error(`${stock.symbol}缺少Global Quote数据:`, data);
-          return null;
-        }
-        
-        const price = quote['05. price'];
-        const change = quote['09. change'];  
-        const changePercent = quote['10. change percent'];
-        const volume = quote['06. volume'];
-        
-        if (!price) {
-          console.error(`${stock.symbol}缺少价格数据:`, quote);
-          return null;
-        }
+    const data = await response.json();
+    console.log('FMP原始数据:', data);
+    
+    // 检查是否有错误信息
+    if (data.error || (Array.isArray(data) && data.length === 0)) {
+      throw new Error('FMP API返回空数据或错误');
+    }
+    
+    // 检查API限制 (FMP的错误格式)
+    if (data.message && data.message.includes('limit')) {
+      throw new Error('FMP_API_LIMIT_REACHED');
+    }
 
-        return {
-          ...stock,
-          price: parseFloat(price).toFixed(2),
-          change: change ? parseFloat(change).toFixed(2) : '0.00',
-          changePercent: changePercent ? parseFloat(changePercent.replace('%', '')).toFixed(2) : '0.00',
-          volume: volume ? formatVolume(volume) : 'N/A',
-          isPositive: change ? parseFloat(change) >= 0 : true,
+    // 处理FMP返回的数据
+    const processedResults = [];
+    
+    // 遍历追踪的股票列表
+    for (const trackedStock of TRACKED_STOCKS) {
+      // 在FMP数据中查找对应的股票数据
+      const fmpData = Array.isArray(data) ? 
+        data.find(item => item.symbol === trackedStock.symbol) : null;
+      
+      if (fmpData && fmpData.price !== null && fmpData.price !== undefined) {
+        // 使用FMP API数据
+        const change = fmpData.change || 0;
+        const changePercent = fmpData.changePercentage || 0;
+        
+        processedResults.push({
+          ...trackedStock,
+          price: parseFloat(fmpData.price).toFixed(2),
+          change: parseFloat(change).toFixed(2),
+          changePercent: parseFloat(changePercent).toFixed(2),
+          volume: fmpData.volume ? formatVolume(fmpData.volume.toString()) : 'N/A',
+          isPositive: change >= 0,
           timestamp: new Date().getTime(),
-          dataSource: 'API' // 标识数据源
+          dataSource: 'FMP' // 标识数据源为FMP
+        });
+        
+        console.log(`${trackedStock.symbol}: 成功获取FMP数据`);
+      } else {
+        // 如果FMP没有该股票数据，生成模拟数据
+        const mockData = {
+          ...trackedStock,
+          price: (Math.random() * 200 + 50).toFixed(2),
+          change: (Math.random() * 10 - 5).toFixed(2),
+          changePercent: (Math.random() * 8 - 4).toFixed(2),
+          volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+          isPositive: Math.random() > 0.5,
+          timestamp: new Date().getTime(),
+          isMockData: true,
+          dataSource: 'Mock' // 标识数据源
         };
         
-      } catch (error) {
-        if (error.message === 'API_LIMIT_REACHED') {
-          throw error;
-        }
-        console.error(`获取${stock.symbol}数据时出错:`, error);
-        return null;
+        processedResults.push(mockData);
+        console.log(`${trackedStock.symbol}: 使用模拟数据 (FMP无数据)`);
       }
-    });
-    
-    try {
-      const batchResults = await Promise.all(batchPromises);
-      const validResults = batchResults.filter(result => result !== null);
-      results.push(...validResults);
-      
-      // 批次间延迟，放宽到30秒
-      if (batchIndex < batches.length - 1) {
-        console.log('等待30秒后处理下一批...');
-        await new Promise(resolve => setTimeout(resolve, 30000));
-      }
-      
-    } catch (error) {
-      if (error.message === 'API_LIMIT_REACHED') {
-        console.log('API限制达到，停止后续请求');
-        break;
-      }
-      console.error(`批次${batchIndex + 1}处理失败:`, error);
     }
+
+    console.log('FMP批量处理完成，获取数据:', processedResults);
+    return processedResults;
+
+  } catch (error) {
+    console.error('FMP API请求失败:', error);
+    
+    // 如果FMP API失败，为所有股票生成模拟数据
+    const mockResults = TRACKED_STOCKS.map(stock => ({
+      ...stock,
+      price: (Math.random() * 200 + 50).toFixed(2),
+      change: (Math.random() * 10 - 5).toFixed(2),
+      changePercent: (Math.random() * 8 - 4).toFixed(2),
+      volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+      isPositive: Math.random() > 0.5,
+      timestamp: new Date().getTime(),
+      isMockData: true,
+      dataSource: 'Mock'
+    }));
+
+    console.log('FMP API失败，使用全模拟数据');
+    throw error; // 重新抛出错误以便上层处理
   }
-
-  // 为没有获取到API数据的股票生成模拟数据
-  const apiSymbols = results.map(r => r.symbol);
-  const missingStocks = TRACKED_STOCKS.filter(stock => !apiSymbols.includes(stock.symbol));
-  
-  const mockResults = missingStocks.map(stock => ({
-    ...stock,
-    price: (Math.random() * 200 + 50).toFixed(2),
-    change: (Math.random() * 10 - 5).toFixed(2),
-    changePercent: (Math.random() * 8 - 4).toFixed(2),
-    volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-    isPositive: Math.random() > 0.5,
-    timestamp: new Date().getTime(),
-    isMockData: true,
-    dataSource: 'Mock' // 标识数据源
-  }));
-
-  const allResults = [...results, ...mockResults];
-  console.log('成功获取所有股票数据:', allResults);
-  return allResults;
 };
 
 // 格式化交易量显示
@@ -231,20 +211,20 @@ const StockDashboard = () => {
 
   // 从localStorage获取API key
   useEffect(() => {
-    const savedKey = localStorage.getItem('alphavantage_api_key');
+    const savedKey = localStorage.getItem('fmp_api_key');
     if (savedKey) {
       setApiKey(savedKey);
     } else {
-      // 提供默认的API key
-      setApiKey('9D65JZM25N7RSKV6');
-      localStorage.setItem('alphavantage_api_key', '9D65JZM25N7RSKV6');
+      // 提供默认的FMP API key (demo key)
+      setApiKey('demo');
+      localStorage.setItem('fmp_api_key', 'demo');
     }
   }, []);
 
   // 保存API key
   const saveApiKey = () => {
     if (tempApiKey.trim()) {
-      localStorage.setItem('alphavantage_api_key', tempApiKey.trim());
+      localStorage.setItem('fmp_api_key', tempApiKey.trim());
       setApiKey(tempApiKey.trim());
       setShowApiDialog(false);
       setTempApiKey('');
@@ -259,10 +239,10 @@ const StockDashboard = () => {
       setError(null);
       setLoading(true);
       
-      const currentApiKey = apiKey || localStorage.getItem('alphavantage_api_key');
+      const currentApiKey = apiKey || localStorage.getItem('fmp_api_key');
       
       if (!currentApiKey) {
-        setError("需要Alpha Vantage API密钥");
+        setError("需要FMP API密钥");
         // 加载所有股票的mock数据
         const mockData = generateMockData();
         setStockData(mockData);
@@ -446,15 +426,15 @@ const StockDashboard = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Alpha Vantage API Settings</DialogTitle>
+                <DialogTitle>FMP API Settings</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium">API Key</label>
+                  <label className="text-sm font-medium">FMP API Key</label>
                   <Input
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
-                    placeholder="Enter your Alpha Vantage API key"
+                    placeholder="Enter your FMP API key"
                     type="password"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -506,11 +486,11 @@ const StockDashboard = () => {
                                  模拟
                                </span>
                              )}
-                             {stock.dataSource === 'API' && (
-                               <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-md dark:bg-green-900/20 dark:text-green-400">
-                                 实时
-                               </span>
-                             )}
+                              {stock.dataSource === 'FMP' && (
+                                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-md dark:bg-green-900/20 dark:text-green-400">
+                                  FMP
+                                </span>
+                              )}
                            </div>
                            <div className="text-xs text-muted-foreground">{stock.symbol}</div>
                          </div>
@@ -543,7 +523,7 @@ const StockDashboard = () => {
             <div className="mt-4 pt-4 border-t border-secondary/30">
             <div className="flex justify-between items-center text-xs text-muted-foreground">
               <span>
-                由 Alpha Vantage 提供数据 • 每小时自动更新 • 免费版有API限制 • 仅供参考，投资有风险
+                由 FMP 提供数据 • 每小时自动更新 • 免费版250次/日限制 • 仅供参考，投资有风险
               </span>
               {lastUpdate && (
                 <span>
