@@ -46,8 +46,8 @@ const generateMockData = () => {
 
 // 使用FMP API获取实时股票数据 (批量请求)
 const fetchRealTimeStockData = async (apiKey?: string) => {
-  if (!apiKey) {
-    throw new Error('FMP API key is required');
+  if (!apiKey || apiKey === 'demo') {
+    throw new Error('需要有效的FMP API密钥。请访问 https://financialmodelingprep.com 获取免费API密钥');
   }
 
   console.log('开始获取FMP批量数据，API密钥:', apiKey.substring(0, 8) + '...');
@@ -65,6 +65,9 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
     const response = await fetch(url);
     
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('FMP API密钥无效。请访问 https://financialmodelingprep.com 获取有效的API密钥');
+      }
       throw new Error(`FMP API请求失败: ${response.status} ${response.statusText}`);
     }
 
@@ -131,21 +134,6 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
 
   } catch (error) {
     console.error('FMP API请求失败:', error);
-    
-    // 如果FMP API失败，为所有股票生成模拟数据
-    const mockResults = TRACKED_STOCKS.map(stock => ({
-      ...stock,
-      price: (Math.random() * 200 + 50).toFixed(2),
-      change: (Math.random() * 10 - 5).toFixed(2),
-      changePercent: (Math.random() * 8 - 4).toFixed(2),
-      volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-      isPositive: Math.random() > 0.5,
-      timestamp: new Date().getTime(),
-      isMockData: true,
-      dataSource: 'Mock'
-    }));
-
-    console.log('FMP API失败，使用全模拟数据');
     throw error; // 重新抛出错误以便上层处理
   }
 };
@@ -177,12 +165,11 @@ const StockDashboard = () => {
   // 从localStorage获取API key
   useEffect(() => {
     const savedKey = localStorage.getItem('fmp_api_key');
-    if (savedKey) {
+    if (savedKey && savedKey !== 'demo') {
       setApiKey(savedKey);
     } else {
-      // 提供默认的FMP API key (demo key)
-      setApiKey('demo');
-      localStorage.setItem('fmp_api_key', 'demo');
+      // 不设置默认的demo key，让用户自己输入
+      setApiKey('');
     }
   }, []);
 
@@ -206,8 +193,8 @@ const StockDashboard = () => {
       
       const currentApiKey = apiKey || localStorage.getItem('fmp_api_key');
       
-      if (!currentApiKey) {
-        setError("需要FMP API密钥");
+      if (!currentApiKey || currentApiKey === 'demo') {
+        setError("需要有效的FMP API密钥。请点击设置按钮输入API密钥");
         // 每次都生成新的模拟数据
         const mockData = generateMockData();
         setStockData(mockData);
@@ -355,6 +342,9 @@ const StockDashboard = () => {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Current: {apiKey ? `${apiKey.substring(0, 8)}...` : 'Not set'}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    获取免费API密钥: <a href="https://financialmodelingprep.com" target="_blank" rel="noopener noreferrer" className="underline">financialmodelingprep.com</a>
                   </p>
                 </div>
                 <Button onClick={saveApiKey} className="w-full">
