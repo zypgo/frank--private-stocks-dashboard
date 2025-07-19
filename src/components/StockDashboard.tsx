@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-// 所有追踪的股票（仅美国股票，符合FMP免费计划限制）
+// 所有追踪的股票
 const TRACKED_STOCKS = [
   // 七巨头中的选定股票
   { symbol: "AAPL", name: "Apple", category: "七巨头" },
   { symbol: "GOOGL", name: "Alphabet", category: "七巨头" },
-  { symbol: "MSFT", name: "Microsoft", category: "七巨头" },
-  { symbol: "NVDA", name: "NVIDIA", category: "七巨头" },
   // 黄金ETF
   { symbol: "GLD", name: "SPDR黄金ETF", category: "贵金属" },
   { symbol: "IAU", name: "iShares黄金ETF", category: "贵金属" },
@@ -19,16 +17,17 @@ const TRACKED_STOCKS = [
   { symbol: "KHC", name: "卡夫亨氏", category: "消费品" },
   { symbol: "MDLZ", name: "亿滋", category: "消费品" },
   { symbol: "PEP", name: "百事可乐", category: "消费品" },
-  { symbol: "KO", name: "可口可乐", category: "消费品" },
+  { symbol: "STZ", name: "星座品牌", category: "消费品" },
+  { symbol: "DEO", name: "帝亚吉欧", category: "消费品" },
+  { symbol: "LVMUY", name: "路威酩轩", category: "消费品" },
   // 科技股票
+  { symbol: "PDD", name: "拼多多", category: "科技" },
   { symbol: "MU", name: "美光科技", category: "科技" },
   { symbol: "QCOM", name: "高通", category: "科技" },
-  { symbol: "AMD", name: "AMD", category: "科技" },
   // 医疗股票
   { symbol: "UNH", name: "联合健康", category: "医疗" },
-  { symbol: "JNJ", name: "强生", category: "医疗" },
-  // VIX恐慌指数（特殊处理）
-  { symbol: "VIX", name: "VIX恐慌指数", category: "指数" },
+  // VIX恐慌指数
+  { symbol: "^VIX", name: "VIX恐慌指数", category: "指数" },
 ];
 
 // 生成模拟股票数据
@@ -66,11 +65,11 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
   console.log('开始获取FMP批量数据，API密钥:', apiKey.substring(0, 8) + '...');
 
   try {
-    // 过滤掉VIX指数，因为FMP免费版可能不支持指数
-    const usStocks = TRACKED_STOCKS.filter(stock => stock.symbol !== 'VIX');
-    const symbolList = usStocks.map(stock => stock.symbol).join(',');
+    // 过滤掉VIX，因为它可能需要特殊处理
+    const stockSymbols = TRACKED_STOCKS.filter(stock => stock.symbol !== '^VIX').map(stock => stock.symbol);
+    const symbolList = stockSymbols.join(',');
     
-    // 使用v3 API端点
+    // 使用稳定版API端点和正确的参数格式
     const url = `https://financialmodelingprep.com/api/v3/quote/${symbolList}?apikey=${apiKey}`;
     
     console.log('FMP批量请求URL:', url);
@@ -107,8 +106,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
     // 处理FMP返回的数据
     const processedResults = [];
     
-    // 遍历追踪的股票列表（除了VIX）
-    for (const trackedStock of TRACKED_STOCKS.filter(stock => stock.symbol !== 'VIX')) {
+    // 遍历追踪的股票列表（不包括VIX）
+    for (const trackedStock of TRACKED_STOCKS.filter(stock => stock.symbol !== '^VIX')) {
       // 在FMP数据中查找对应的股票数据
       const fmpData = Array.isArray(data) ? 
         data.find(item => item.symbol === trackedStock.symbol) : null;
@@ -159,8 +158,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
       }
     }
 
-    // 手动添加VIX恐慌指数（模拟数据）
-    const vixStock = TRACKED_STOCKS.find(stock => stock.symbol === 'VIX');
+    // 手动添加VIX模拟数据（因为FMP免费版可能不支持）
+    const vixStock = TRACKED_STOCKS.find(stock => stock.symbol === '^VIX');
     if (vixStock) {
       const vixValue = Math.random() * 30 + 10; // VIX通常在10-50之间
       const vixChange = (Math.random() * 4 - 2);
