@@ -26,20 +26,32 @@ const TRACKED_STOCKS = [
   { symbol: "QCOM", name: "高通", category: "科技" },
   // 医疗股票
   { symbol: "UNH", name: "联合健康", category: "医疗" },
+  // VIX恐慌指数
+  { symbol: "^VIX", name: "VIX恐慌指数", category: "指数" },
 ];
 
 // 生成模拟股票数据
 const generateMockData = () => {
-  return TRACKED_STOCKS.map(stock => ({
-    ...stock,
-    price: (Math.random() * 200 + 50).toFixed(2),
-    change: (Math.random() * 10 - 5).toFixed(2),
-    changePercent: (Math.random() * 8 - 4).toFixed(2),
-    volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-    isPositive: Math.random() > 0.5,
-    timestamp: new Date().getTime(),
-    isMockData: true
-  }));
+  return TRACKED_STOCKS.map(stock => {
+    const price = Math.random() * 200 + 50;
+    const open = price + (Math.random() * 10 - 5);
+    const previousClose = price - (Math.random() * 10 - 5);
+    const change = price - previousClose;
+    const changePercent = (change / previousClose) * 100;
+    
+    return {
+      ...stock,
+      price: price.toFixed(2),
+      open: open.toFixed(2),
+      previousClose: previousClose.toFixed(2),
+      change: change.toFixed(2),
+      changePercent: changePercent.toFixed(2),
+      volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+      isPositive: change >= 0,
+      timestamp: new Date().getTime(),
+      isMockData: true
+    };
+  });
 };
 
 // 简化的数据生成和获取，移除缓存机制
@@ -101,6 +113,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
         processedResults.push({
           ...trackedStock,
           price: parseFloat(fmpData.price).toFixed(2),
+          open: fmpData.open ? parseFloat(fmpData.open).toFixed(2) : 'N/A',
+          previousClose: fmpData.previousClose ? parseFloat(fmpData.previousClose).toFixed(2) : 'N/A',
           change: parseFloat(change).toFixed(2),
           changePercent: parseFloat(changePercent).toFixed(2),
           volume: fmpData.volume ? formatVolume(fmpData.volume.toString()) : 'N/A',
@@ -112,13 +126,21 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
         console.log(`${trackedStock.symbol}: 成功获取FMP数据`);
       } else {
         // 如果FMP没有该股票数据，生成模拟数据
+        const price = Math.random() * 200 + 50;
+        const open = price + (Math.random() * 10 - 5);
+        const previousClose = price - (Math.random() * 10 - 5);
+        const change = price - previousClose;
+        const changePercent = (change / previousClose) * 100;
+        
         const mockData = {
           ...trackedStock,
-          price: (Math.random() * 200 + 50).toFixed(2),
-          change: (Math.random() * 10 - 5).toFixed(2),
-          changePercent: (Math.random() * 8 - 4).toFixed(2),
+          price: price.toFixed(2),
+          open: open.toFixed(2),
+          previousClose: previousClose.toFixed(2),
+          change: change.toFixed(2),
+          changePercent: changePercent.toFixed(2),
           volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-          isPositive: Math.random() > 0.5,
+          isPositive: change >= 0,
           timestamp: new Date().getTime(),
           isMockData: true,
           dataSource: 'Mock' // 标识数据源
@@ -214,17 +236,27 @@ const StockDashboard = () => {
         console.warn('FMP API获取失败，使用模拟数据:', apiError.message);
         
         // 如果API失败，生成新的模拟数据
-        const allMockData = TRACKED_STOCKS.map(stock => ({
-          ...stock,
-          price: (Math.random() * 200 + 50).toFixed(2),
-          change: (Math.random() * 10 - 5).toFixed(2),
-          changePercent: (Math.random() * 8 - 4).toFixed(2),
-          volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-          isPositive: Math.random() > 0.5,
-          timestamp: new Date().getTime(),
-          isMockData: true,
-          dataSource: 'Mock'
-        }));
+        const allMockData = TRACKED_STOCKS.map(stock => {
+          const price = Math.random() * 200 + 50;
+          const open = price + (Math.random() * 10 - 5);
+          const previousClose = price - (Math.random() * 10 - 5);
+          const change = price - previousClose;
+          const changePercent = (change / previousClose) * 100;
+          
+          return {
+            ...stock,
+            price: price.toFixed(2),
+            open: open.toFixed(2),
+            previousClose: previousClose.toFixed(2),
+            change: change.toFixed(2),
+            changePercent: changePercent.toFixed(2),
+            volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+            isPositive: change >= 0,
+            timestamp: new Date().getTime(),
+            isMockData: true,
+            dataSource: 'Mock'
+          };
+        });
         
         setStockData(allMockData);
         setLastUpdate(new Date());
@@ -235,16 +267,26 @@ const StockDashboard = () => {
       console.error('Load stock data error:', err);
       
       // 最后的备选：加载所有股票的mock数据
-      const allMockData = TRACKED_STOCKS.map(stock => ({
-        ...stock,
-        price: (Math.random() * 200 + 50).toFixed(2),
-        change: (Math.random() * 10 - 5).toFixed(2),
-        changePercent: (Math.random() * 8 - 4).toFixed(2),
-        volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
-        isPositive: Math.random() > 0.5,
-        timestamp: new Date().getTime(),
-        isMockData: true
-      }));
+      const allMockData = TRACKED_STOCKS.map(stock => {
+        const price = Math.random() * 200 + 50;
+        const open = price + (Math.random() * 10 - 5);
+        const previousClose = price - (Math.random() * 10 - 5);
+        const change = price - previousClose;
+        const changePercent = (change / previousClose) * 100;
+        
+        return {
+          ...stock,
+          price: price.toFixed(2),
+          open: open.toFixed(2),
+          previousClose: previousClose.toFixed(2),
+          change: change.toFixed(2),
+          changePercent: changePercent.toFixed(2),
+          volume: formatVolume((Math.random() * 100000000 + 10000000).toString()),
+          isPositive: change >= 0,
+          timestamp: new Date().getTime(),
+          isMockData: true
+        };
+      });
       
       setStockData(allMockData);
       setLastUpdate(new Date());
@@ -367,8 +409,10 @@ const StockDashboard = () => {
               <thead>
                 <tr className="border-b border-secondary/30">
                   <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">名称</th>
-                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">价格</th>
-                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">24小时变化</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">当前价格</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">开盘价</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">前收盘</th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">涨跌幅</th>
                   <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">交易量</th>
                 </tr>
               </thead>
@@ -400,24 +444,30 @@ const StockDashboard = () => {
                          </div>
                        </div>
                      </td>
-                    <td className="text-right py-4 px-2 font-medium">
-                      ${stock.price}
-                    </td>
-                    <td className="text-right py-4 px-2">
-                      <div className="flex items-center justify-end gap-1">
-                        {stock.isPositive ? (
-                          <TrendingUp className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 text-red-500" />
-                        )}
-                        <span className={stock.isPositive ? 'text-green-500' : 'text-red-500'}>
-                          {stock.isPositive ? '+' : ''}{stock.changePercent}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-right py-4 px-2 text-muted-foreground">
-                      ${stock.volume}
-                    </td>
+                     <td className="text-right py-4 px-2 font-medium">
+                       ${stock.price}
+                     </td>
+                     <td className="text-right py-4 px-2 text-muted-foreground">
+                       ${stock.open}
+                     </td>
+                     <td className="text-right py-4 px-2 text-muted-foreground">
+                       ${stock.previousClose}
+                     </td>
+                     <td className="text-right py-4 px-2">
+                       <div className="flex items-center justify-end gap-1">
+                         {stock.isPositive ? (
+                           <TrendingUp className="w-4 h-4 text-green-500" />
+                         ) : (
+                           <TrendingDown className="w-4 h-4 text-red-500" />
+                         )}
+                         <span className={stock.isPositive ? 'text-green-500' : 'text-red-500'}>
+                           {stock.isPositive ? '+' : ''}{stock.changePercent}%
+                         </span>
+                       </div>
+                     </td>
+                     <td className="text-right py-4 px-2 text-muted-foreground">
+                       ${stock.volume}
+                     </td>
                   </tr>
                 ))}
               </tbody>
