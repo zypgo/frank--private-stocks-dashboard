@@ -261,12 +261,10 @@ const StockDashboard = () => {
     await loadStockData(true); // 强制刷新，不使用缓存
   };
 
-  // 初始加载 - 每次都获取新数据
+  // 初始加载 - 加载模拟数据或真实数据
   useEffect(() => {
-    if (apiKey) {
-      console.log('初始加载触发');
-      loadStockData(true); // 强制刷新
-    }
+    console.log('初始加载触发，当前API Key:', apiKey ? 'Has Key' : 'No Key');
+    loadStockData(true); // 总是加载数据，如果没有API key则显示模拟数据
   }, [apiKey]);
 
   // 移除自动刷新，只在用户操作时刷新
