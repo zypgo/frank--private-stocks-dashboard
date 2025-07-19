@@ -26,8 +26,6 @@ const TRACKED_STOCKS = [
   { symbol: "QCOM", name: "高通", category: "科技" },
   // 医疗股票
   { symbol: "UNH", name: "联合健康", category: "医疗" },
-  // VIX恐慌指数
-  { symbol: "^VIX", name: "VIX恐慌指数", category: "指数" },
 ];
 
 // 生成模拟股票数据
@@ -65,8 +63,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
   console.log('开始获取FMP批量数据，API密钥:', apiKey.substring(0, 8) + '...');
 
   try {
-    // 过滤掉VIX，因为它可能需要特殊处理
-    const stockSymbols = TRACKED_STOCKS.filter(stock => stock.symbol !== '^VIX').map(stock => stock.symbol);
+    // 获取所有股票符号
+    const stockSymbols = TRACKED_STOCKS.map(stock => stock.symbol);
     const symbolList = stockSymbols.join(',');
     
     // 使用稳定版API端点和正确的参数格式
@@ -106,8 +104,8 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
     // 处理FMP返回的数据
     const processedResults = [];
     
-    // 遍历追踪的股票列表（不包括VIX）
-    for (const trackedStock of TRACKED_STOCKS.filter(stock => stock.symbol !== '^VIX')) {
+    // 遍历追踪的股票列表
+    for (const trackedStock of TRACKED_STOCKS) {
       // 在FMP数据中查找对应的股票数据
       const fmpData = Array.isArray(data) ? 
         data.find(item => item.symbol === trackedStock.symbol) : null;
@@ -158,27 +156,6 @@ const fetchRealTimeStockData = async (apiKey?: string) => {
       }
     }
 
-    // 手动添加VIX模拟数据（因为FMP免费版可能不支持）
-    const vixStock = TRACKED_STOCKS.find(stock => stock.symbol === '^VIX');
-    if (vixStock) {
-      const vixValue = Math.random() * 30 + 10; // VIX通常在10-50之间
-      const vixChange = (Math.random() * 4 - 2);
-      const vixChangePercent = (vixChange / vixValue) * 100;
-      
-      processedResults.push({
-        ...vixStock,
-        price: vixValue.toFixed(2),
-        open: (vixValue + (Math.random() * 2 - 1)).toFixed(2),
-        previousClose: (vixValue - vixChange).toFixed(2),
-        change: vixChange.toFixed(2),
-        changePercent: vixChangePercent.toFixed(2),
-        volume: 'N/A',
-        isPositive: vixChange >= 0,
-        timestamp: new Date().getTime(),
-        isMockData: true,
-        dataSource: 'Mock'
-      });
-    }
 
     console.log('FMP批量处理完成，获取数据:', processedResults);
     return processedResults;
